@@ -241,7 +241,7 @@ export const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
         {/* Research Query Search Hero Bar */}
-        <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+        <section className="glass-panel rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
           <form onSubmit={handleDiscoverAndSynthesize} className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -249,44 +249,59 @@ export const App: React.FC = () => {
                 type="text"
                 value={customInputQuery}
                 onChange={(e) => setCustomInputQuery(e.target.value)}
-                placeholder="Enter any scientific or medical question (e.g. Does Metformin extend mammalian lifespan?)..."
-                className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors font-medium"
+                placeholder="Ask any scientific or medical question (e.g., Does Metformin extend lifespan? Does fasting trigger autophagy?)..."
+                className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl pl-11 pr-4 py-3.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium"
               />
             </div>
             <button
               type="submit"
               disabled={isDiscovering || !customInputQuery.trim()}
-              className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 shrink-0"
+              className="px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 shrink-0"
             >
               {isDiscovering ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Swarm Streaming...</span>
+                  <span>Synthesizing Literature...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>Search PubMed & Synthesize</span>
+                  <span>Run Consensus Swarm</span>
                 </>
               )}
             </button>
           </form>
 
+          {/* Active Scholarly Ingestion Sources */}
+          <div className="flex flex-wrap items-center gap-3 mt-3 pt-2 text-[11px] text-slate-400">
+            <span className="font-semibold text-slate-300">Live Registries:</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800/60 border border-slate-700/50 text-slate-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> NCBI PubMed Central
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800/60 border border-slate-700/50 text-slate-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> CrossRef (JAMA / Nature / Lancet)
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800/60 border border-slate-700/50 text-slate-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> Europe PMC (14M+ Articles)
+            </span>
+          </div>
+
           {/* Preset Chips */}
           <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-800/80">
             <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
-              <BookOpen className="w-3.5 h-3.5 text-emerald-400" /> Presets:
+              <BookOpen className="w-3.5 h-3.5 text-emerald-400" /> Curated Benchmarks:
             </span>
             {TOPIC_PRESETS.map((preset) => (
               <button
                 key={preset.label}
                 onClick={() => handleSelectPreset(preset.query)}
-                className={`px-3 py-1 rounded-lg text-xs transition-all font-medium border ${
+                className={`px-3 py-1 rounded-lg text-xs transition-all font-medium border flex items-center gap-1.5 ${
                   researchQuery === preset.query
-                    ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40 shadow-sm'
-                    : 'bg-slate-950/40 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                    ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-sm'
+                    : 'bg-slate-950/50 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
                 }`}
               >
+                <span className="text-[10px] uppercase font-mono px-1 py-0.2 rounded bg-slate-800/80 text-slate-300">{preset.tag}</span>
                 {preset.label}
               </button>
             ))}

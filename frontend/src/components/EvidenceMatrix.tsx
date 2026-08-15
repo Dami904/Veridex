@@ -53,21 +53,35 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
     const prov = paper?.provenance;
     if (prov === 'PUBMED_CENTRAL' || paper?.pmid) {
       return (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
           <Database className="w-2.5 h-2.5" /> PubMed Central
+        </span>
+      );
+    }
+    if (prov === 'CROSSREF_SCHOLARLY') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          <Database className="w-2.5 h-2.5" /> CrossRef Scholarly
+        </span>
+      );
+    }
+    if (prov === 'EUROPE_PMC') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          <Database className="w-2.5 h-2.5" /> Europe PMC
         </span>
       );
     }
     if (prov === 'USER_UPLOAD' || paper?.s3_pdf_url) {
       return (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
           <UploadCloud className="w-2.5 h-2.5" /> S3 Paper Lake
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-        <ShieldCheck className="w-2.5 h-2.5" /> Curated Benchmark
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700/60">
+        <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" /> Benchmark
       </span>
     );
   };
@@ -86,7 +100,7 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+    <section className="glass-panel rounded-2xl p-6 sm:p-7 shadow-2xl relative overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -331,6 +345,6 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };

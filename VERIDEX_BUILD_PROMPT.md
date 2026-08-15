@@ -6,17 +6,15 @@ Paste this entire document into your coding agent as the project brief. It is se
 
 Veridex is a multi-agent system that resolves scientific disagreement. Given a research question (e.g. "Does Metformin extend lifespan in non-diabetic mammals?"), it ingests the relevant papers, extracts structured, evidence-linked claims from each one, identifies where studies contradict each other, explains *why* when the data supports an explanation, and produces a live consensus verdict computed on demand from the current evidence base — not a cached summary that can drift out of date.
 
-This is being built for two submissions:
-- **IIT Madras Research Agents Hack** — Literature Review & Synthesis track (or Open Track)
-- **CockroachDB × AWS Hackathon: Build with Agentic Memory**
+This specification defines the production implementation requirements for Veridex as an open-source clinical meta-synthesis platform.
 
-## 2. What "winning" looks like on both rubrics
+## 2. Core System Priorities
 
-**IIT Madras** (Research utility 30% / Agent collaboration 25% / Working demo 20% / Cost efficiency 15% / Originality 10%): the win condition is an auditable trail per claim (paper → extracted claim → contradiction → verdict), genuine agent-to-agent handoff (not a linear prompt chain), and a demo that runs on a real, bounded example without breaking.
-
-**CockroachDB × AWS** (Agentic memory design / Technical implementation / Real-world impact / Production readiness / Creativity): the win condition is CockroachDB doing real work as a system of record — relational study data, vector similarity for topic clustering, and a contradiction graph — not a database bolted on to check a box. The CockroachDB rules also require a public **demo app URL**, which is why Section 9 (Frontend) exists — this isn't optional polish, it's a submission requirement.
-
-Both rubrics reward the same thing: make the evidence base itself the product, not a chat wrapper around it.
+Key engineering objectives:
+1. **Auditable Evidence Traceability**: Maintain an unbroken chain from raw study text $\rightarrow$ structured parametric claim $\rightarrow$ contradiction ledger $\rightarrow$ deterministic consensus verdict.
+2. **Persistent Agentic Memory**: Leverage CockroachDB distributed vector indexing and relational tables as the single source of truth without caching consensus states.
+3. **Multi-Source Resilient Ingestion**: Parallel retrieval from NCBI PubMed Central, CrossRef, and Europe PMC with automatic LLM Librarian normalization.
+4. **Deterministic Guardrails**: Strict code-enforced confidence tiers with zero LLM math hallucination.
 
 ## 3. Core design decision: no cached consensus
 
@@ -208,13 +206,9 @@ The three Lambdas from Section 4 are internal pipeline stages, not something a f
 
 Keep the response from `/matrix` as one flat, frontend-ready shape — don't make the UI stitch together three separate calls to render one screen.
 
-**Auth**: an API Gateway usage-plan key is enough for a hackathon submission. Note in the README that production would add per-user auth (OAuth/JWT) — naming the gap is worth more to "production readiness" scoring than silently having none and also not mentioning it.
+**Auth**: Bearer token and rate limiters protect the API. Note in the README that multi-tenant production would add per-user auth (OAuth/JWT) — naming the gap is worth more to "production readiness" than silently having none and also not mentioning it.
 
-**CORS**: enable it on the API Gateway for whatever origin the frontend ends up deployed on (Section 9).
-
-## 9. Frontend
-
-The CockroachDB hackathon explicitly requires a public demo app URL, so this isn't optional. Keep it small — every extra screen is time you don't have.
+**Frontend UI**: The public web dashboard provides an interactive explorer. Keep it clean and focused — every screen serves a direct clinical research function.
 
 **Stack**: a single-page Vite + React app. Don't reach for a backend framework or SSR here — it's a dashboard over an API, nothing more.
 
@@ -282,7 +276,7 @@ veridex/
 4. Frontend — matrix view, contradictions panel, synthesis panel, add-paper form, pointed at the API Gateway URL.
 5. Freeze the demo dataset, run the full pipeline end to end at least 3 times, deploy the frontend, then record.
 
-## 15. Submission checklist (both hackathons)
+## 15. Production Release & Verification Checklist
 
 - [ ] Public repo, LICENSE visible in GitHub "About"
 - [ ] README with setup instructions + reproducibility section (models, APIs, dataset, estimated run cost, known limitations)

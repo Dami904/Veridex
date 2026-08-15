@@ -7,7 +7,7 @@ export interface Paper {
   year: number | null;
   abstract_text: string;
   s3_pdf_url: string | null;
-  provenance?: 'PUBMED_CENTRAL' | 'CURATED_BENCHMARK' | 'USER_UPLOAD';
+  provenance?: 'PUBMED_CENTRAL' | 'CROSSREF_SCHOLARLY' | 'EUROPE_PMC' | 'CURATED_BENCHMARK' | 'USER_UPLOAD';
   created_at: string;
   distance?: number;
   similarity_pct?: number;
@@ -34,7 +34,7 @@ export interface StudyExtraction {
   journal?: string;
   doi?: string | null;
   pmid?: string | null;
-  provenance?: 'PUBMED_CENTRAL' | 'CURATED_BENCHMARK' | 'USER_UPLOAD';
+  provenance?: 'PUBMED_CENTRAL' | 'CROSSREF_SCHOLARLY' | 'EUROPE_PMC' | 'CURATED_BENCHMARK' | 'USER_UPLOAD';
 }
 
 export interface Contradiction {

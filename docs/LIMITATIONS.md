@@ -16,5 +16,4 @@ Honest documentation of current scope boundaries and design trade-offs.
 - **Deterministic Confidence Rating**: The confidence tier uses a rule-based algorithm (sample size, majority consensus $\ge 80\%$, risk of bias distribution) rather than a full Bayesian meta-regression.
 - **No Direct Medical Advice**: Veridex synthesizes literature findings; it is not a clinical decision support tool and should not be used as medical advice.
 
-## 4. Authentication & Multi-Tenancy
-- **API Gateway Access**: Configured with usage-plan API keys for hackathon demonstration. Multi-tenant per-user authentication (OAuth/JWT) is marked as a production roadmap item.
+- **API Access**: Configured with bearer tokens and rate limiting. Multi-tenant per-user authentication (OAuth/JWT) is scheduled for future enterprise multi-org deployments.
