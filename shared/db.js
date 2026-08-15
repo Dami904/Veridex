@@ -12,7 +12,7 @@ const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// In-memory fallback storage for offline development and testing
+// In-memory fallback storage for offline development, local testing, and offline CI
 class InMemoryDatabase {
   constructor() {
     this.papers = new Map();
@@ -21,16 +21,17 @@ class InMemoryDatabase {
   }
 
   async query(text, params = []) {
-    const trimmed = text.trim().toUpperCase();
+    const trimmed = text.trim();
+    const upper = trimmed.toUpperCase();
 
     // 1. Vector Cosine Similarity Search
-    if (trimmed.includes('FROM PAPERS') && (trimmed.includes('<->') || trimmed.includes('DISTANCE') || trimmed.includes('ORDER BY ABSTRACT_EMBEDDING'))) {
+    if (upper.includes('FROM PAPERS') && (upper.includes('<->') || upper.includes('DISTANCE') || upper.includes('ORDER BY ABSTRACT_EMBEDDING'))) {
       const targetVector = typeof params[0] === 'string' ? JSON.parse(params[0]) : (Array.isArray(params[0]) ? params[0] : null);
       const limit = Number(params[1]) || 10;
 
       const paperList = Array.from(this.papers.values());
       if (!targetVector) {
-        return { rows: paperList.slice(0, limit) };
+        return { rows: paperList.slice(0, limit).map(({ abstract_embedding: _, ...p }) => p) };
       }
 
       const scored = paperList.map((paper) => {
@@ -39,8 +40,9 @@ class InMemoryDatabase {
           const emb = typeof paper.abstract_embedding === 'string' ? JSON.parse(paper.abstract_embedding) : paper.abstract_embedding;
           sim = cosineSimilarity(targetVector, emb);
         }
+        const { abstract_embedding: _, ...cleanPaper } = paper;
         return {
-          ...paper,
+          ...cleanPaper,
           distance: 1.0 - sim, // Cosine distance = 1 - cosine similarity
           similarity: sim,
         };
@@ -51,19 +53,24 @@ class InMemoryDatabase {
     }
 
     // 2. SELECT from papers WHERE id = $1
-    if (trimmed.startsWith('SELECT') && trimmed.includes('FROM PAPERS') && trimmed.includes('WHERE ID = $1')) {
+    if (upper.startsWith('SELECT') && upper.includes('FROM PAPERS') && /(?:WHERE\s+(?:[A-Z0-9_]+\.)?ID\s*=\s*\$1)/i.test(upper)) {
       const paper = this.papers.get(params[0]);
-      return { rows: paper ? [paper] : [] };
+      if (!paper) return { rows: [] };
+      const { abstract_embedding: _, ...cleanPaper } = paper;
+      return { rows: [cleanPaper] };
     }
 
     // 3. SELECT papers WHERE id IN (...)
-    if (trimmed.startsWith('SELECT') && trimmed.includes('FROM PAPERS') && trimmed.includes('WHERE ID IN')) {
-      const results = params.map((id) => this.papers.get(id)).filter(Boolean);
+    if (upper.startsWith('SELECT') && upper.includes('FROM PAPERS') && /(?:WHERE\s+(?:[A-Z0-9_]+\.)?ID\s+IN)/i.test(upper)) {
+      const results = params
+        .map((id) => this.papers.get(id))
+        .filter(Boolean)
+        .map(({ abstract_embedding: _, ...p }) => p);
       return { rows: results };
     }
 
     // 4. INSERT into papers
-    if (trimmed.startsWith('INSERT INTO PAPERS')) {
+    if (upper.startsWith('INSERT INTO PAPERS')) {
       const id = params[0] || randomUUID();
       const paper = {
         id,
@@ -77,11 +84,12 @@ class InMemoryDatabase {
         created_at: new Date().toISOString(),
       };
       this.papers.set(id, paper);
-      return { rows: [paper] };
+      const { abstract_embedding: _, ...cleanPaper } = paper;
+      return { rows: [cleanPaper] };
     }
 
     // 5. INSERT into study_extractions (upsert)
-    if (trimmed.startsWith('INSERT INTO STUDY_EXTRACTIONS')) {
+    if (upper.startsWith('INSERT INTO STUDY_EXTRACTIONS')) {
       const id = params[0] || randomUUID();
       const extraction = {
         id,
@@ -112,8 +120,12 @@ class InMemoryDatabase {
       return { rows: [extraction] };
     }
 
-    // 6. SELECT study_extractions by query
-    if (trimmed.startsWith('SELECT') && trimmed.includes('FROM STUDY_EXTRACTIONS') && trimmed.includes('WHERE RESEARCH_QUERY = $1')) {
+    // 6. SELECT study_extractions by query (alias-aware & join-aware regex)
+    if (
+      upper.startsWith('SELECT') &&
+      upper.includes('STUDY_EXTRACTIONS') &&
+      /(?:WHERE\s+(?:[A-Z0-9_]+\.)?RESEARCH_QUERY\s*=\s*\$1)/i.test(upper)
+    ) {
       const results = [];
       for (const item of this.study_extractions.values()) {
         if (item.research_query === params[0]) {
@@ -132,7 +144,11 @@ class InMemoryDatabase {
     }
 
     // 7. SELECT study_extractions WHERE paper_id = $1
-    if (trimmed.startsWith('SELECT') && trimmed.includes('FROM STUDY_EXTRACTIONS') && trimmed.includes('WHERE PAPER_ID = $1')) {
+    if (
+      upper.startsWith('SELECT') &&
+      upper.includes('STUDY_EXTRACTIONS') &&
+      /(?:WHERE\s+(?:[A-Z0-9_]+\.)?PAPER_ID\s*=\s*\$1)/i.test(upper)
+    ) {
       const results = [];
       for (const item of this.study_extractions.values()) {
         if (item.paper_id === params[0]) {
@@ -143,7 +159,7 @@ class InMemoryDatabase {
     }
 
     // 8. INSERT into contradictions
-    if (trimmed.startsWith('INSERT INTO CONTRADICTIONS')) {
+    if (upper.startsWith('INSERT INTO CONTRADICTIONS')) {
       const id = params[0] || randomUUID();
       const contradiction = {
         id,
@@ -160,8 +176,12 @@ class InMemoryDatabase {
       return { rows: [contradiction] };
     }
 
-    // 9. SELECT contradictions by query
-    if (trimmed.startsWith('SELECT') && trimmed.includes('FROM CONTRADICTIONS') && trimmed.includes('WHERE RESEARCH_QUERY = $1')) {
+    // 9. SELECT contradictions by query (alias-aware regex)
+    if (
+      upper.startsWith('SELECT') &&
+      upper.includes('CONTRADICTIONS') &&
+      /(?:WHERE\s+(?:[A-Z0-9_]+\.)?RESEARCH_QUERY\s*=\s*\$1)/i.test(upper)
+    ) {
       const results = [];
       for (const item of this.contradictions.values()) {
         if (item.research_query === params[0]) {
@@ -177,9 +197,10 @@ class InMemoryDatabase {
       return { rows: results };
     }
 
-    // 10. General SELECT papers
-    if (trimmed.startsWith('SELECT') && trimmed.includes('FROM PAPERS')) {
-      return { rows: Array.from(this.papers.values()) };
+    // 10. General SELECT papers (omitting raw 1024-float vector to avoid payload bloat)
+    if (upper.startsWith('SELECT') && upper.includes('FROM PAPERS')) {
+      const cleanPapers = Array.from(this.papers.values()).map(({ abstract_embedding: _, ...p }) => p);
+      return { rows: cleanPapers };
     }
 
     return { rows: [] };
@@ -221,6 +242,11 @@ async function autoInitSchema(clientPool) {
   }
 }
 
+export function isCockroachDbConnected() {
+  const databaseUrl = process.env.DATABASE_URL;
+  return Boolean(databaseUrl && !databaseUrl.includes('user:password@'));
+}
+
 export function getDbPool() {
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -247,7 +273,7 @@ export function getDbPool() {
     return pool;
   }
 
-  // Fallback to in-memory store for offline development and automated testing
+  // Fallback to in-memory store for offline development, local testing, and offline CI
   if (!memoryDb) {
     memoryDb = new InMemoryDatabase();
   }

@@ -38,7 +38,46 @@ function getBedrockClient() {
  * Local Deterministic Reasoning Engine
  * Parses study claims, sample sizes, effect directions, and confidence metrics offline.
  */
-function localMockExtraction(userPrompt, systemPrompt) {
+function localMockExtraction(userPrompt, systemPrompt, jsonOutput) {
+  // 1. Synthesizer Narrative Generation (Non-JSON prose summary)
+  if (
+    systemPrompt.includes('Synthesizer') ||
+    systemPrompt.includes('evidence synthesis') ||
+    systemPrompt.includes('clinical consensus narrative') ||
+    !jsonOutput
+  ) {
+    let parsedStats = {};
+    try {
+      parsedStats = JSON.parse(userPrompt);
+    } catch {
+      // ignore
+    }
+
+    const total = parsedStats.total_studies || 15;
+    const pos = parsedStats.positive_count || 9;
+    const neg = parsedStats.negative_count || 6;
+    const tier = parsedStats.confidence_tier || 'MODERATE';
+    const sig = parsedStats.significant_count || 13;
+    const avgEffect = parsedStats.avg_effect_size !== undefined ? parsedStats.avg_effect_size : 1.82;
+
+    return `Evidence synthesis across ${total} peer-reviewed studies reveals a ${tier.toLowerCase()} certainty consensus (${pos} supporting, ${neg} opposing). Statistically significant biomarker and physiological improvements (p < 0.05 in ${sig}/${total} studies) were consistently observed in lower-dose therapeutic regimens (mean effect size ${avgEffect > 0 ? '+' : ''}${avgEffect}%). In contrast, opposing outcomes were primarily driven by high-dose toxicity thresholds and model-specific variations. Methodological contradictions have been evaluated and resolved through dosage and model boundary isolation.`;
+  }
+
+  // 2. Arbiter Confounder & Contradiction Resolution
+  if (
+    systemPrompt.includes('Arbiter') ||
+    systemPrompt.includes('isolate methodological confounders') ||
+    systemPrompt.includes('conflict_summary')
+  ) {
+    return {
+      conflict_summary: 'Discrepancy in reported intervention outcomes across independent cohorts',
+      isolated_confounder: 'Dosage discrepancy and pharmacological threshold variance (low-dose therapeutic benefit vs. high-dose toxic saturation)',
+      status: 'RESOLVED',
+      confidence_tier: 'MODERATE',
+    };
+  }
+
+  // 3. Extractor Agent Study Parameter Ingestion
   const isPositive =
     userPrompt.toLowerCase().includes('extend') ||
     userPrompt.toLowerCase().includes('increase') ||
@@ -58,30 +97,18 @@ function localMockExtraction(userPrompt, systemPrompt) {
 
   const effectDirection = isPositive && !isNegative ? 'POSITIVE' : isNegative ? 'NEGATIVE' : 'MIXED';
 
-  // Sample size regex
   let sampleSize = 80;
   const nMatch = userPrompt.match(/\b[nN]\s*=\s*(\d+)\b/);
   if (nMatch) sampleSize = parseInt(nMatch[1], 10);
 
-  // p-value regex
   let pValue = 0.01;
   const pMatch = userPrompt.match(/p\s*[<=]\s*([0-9.]+)/i);
   if (pMatch) pValue = parseFloat(pMatch[1]);
 
-  // Model system
   let modelSystem = 'Rodent (Mus musculus)';
   if (userPrompt.toLowerCase().includes('primate')) modelSystem = 'Non-human Primate';
   if (userPrompt.toLowerCase().includes('human') || userPrompt.toLowerCase().includes('cohort')) modelSystem = 'Human Clinical';
   if (userPrompt.toLowerCase().includes('in-vitro') || userPrompt.toLowerCase().includes('cell')) modelSystem = 'In-Vitro Cellular';
-
-  if (systemPrompt.includes('Arbiter') || systemPrompt.includes('contradiction')) {
-    return {
-      conflict_summary: 'Discrepancy in reported intervention outcomes across independent cohorts',
-      isolated_confounder: 'Dosage discrepancy and pharmacological threshold variance',
-      status: 'RESOLVED',
-      confidence_tier: 'MODERATE',
-    };
-  }
 
   return {
     sample_size: sampleSize,
@@ -102,7 +129,7 @@ function localMockExtraction(userPrompt, systemPrompt) {
  * 1. Google Gemini (e.g. gemini-3.1-flash-lite, gemini-2.0-flash)
  * 2. Amazon Bedrock Foundation Models (Amazon Nova Micro/Lite, Claude 3.5 Haiku, Llama 3)
  * 3. OpenAI (GPT-4o-mini)
- * 4. Local Deterministic Heuristic Engine (100% offline fallback)
+ * 4. Local Deterministic Reasoning Engine (100% offline fallback)
  */
 export async function executeLLMCall({
   systemPrompt,
@@ -272,12 +299,12 @@ export async function executeLLMCall({
 
   // 4. Local Deterministic Reasoning Engine Fallback
   const latencyMs = Date.now() - startTime;
-  const mockContent = localMockExtraction(userPrompt, systemPrompt);
-  const rawText = JSON.stringify(mockContent);
+  const mockResult = localMockExtraction(userPrompt, systemPrompt, jsonOutput);
+  const rawText = typeof mockResult === 'string' ? mockResult : JSON.stringify(mockResult);
   const outputTokens = Math.ceil(rawText.length / 4);
 
   return {
-    content: jsonOutput ? mockContent : rawText,
+    content: jsonOutput && typeof mockResult === 'object' ? mockResult : rawText,
     raw: rawText,
     usage: {
       provider: 'local_deterministic_engine',

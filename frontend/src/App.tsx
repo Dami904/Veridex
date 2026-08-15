@@ -153,6 +153,21 @@ export const App: React.FC = () => {
     }
   };
 
+  const [dbStatus, setDbStatus] = useState<{ isCockroach: boolean; mode: string } | null>(null);
+
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:4000');
+    fetch(`${API_BASE}/health`)
+      .then((r) => r.json())
+      .then((d) => {
+        setDbStatus({
+          isCockroach: Boolean(d.cockroachdb_configured),
+          mode: d.cockroachdb_configured ? 'CockroachDB Cloud' : 'In-Memory DB',
+        });
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
       {/* Top Navbar */}
@@ -162,13 +177,26 @@ export const App: React.FC = () => {
             <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg shadow-emerald-500/10">
               <Layers className="w-5 h-5 text-emerald-400" />
             </div>
-            <div>
+            <div className="flex items-center gap-2">
               <span className="font-bold text-lg tracking-tight text-white flex items-center gap-2">
                 Veridex
                 <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/50">
                   Consensus Engine
                 </span>
               </span>
+              {dbStatus && (
+                <span
+                  className={`hidden md:inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border ${
+                    dbStatus.isCockroach
+                      ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30'
+                      : 'bg-amber-950/40 text-amber-400 border-amber-500/30'
+                  }`}
+                  title={dbStatus.isCockroach ? 'Live CockroachDB Distributed Cloud Cluster Connected' : 'Running in In-Memory Vector Mode for offline dev/testing'}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${dbStatus.isCockroach ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                  {dbStatus.mode}
+                </span>
+              )}
             </div>
           </div>
 
