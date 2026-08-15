@@ -1,0 +1,11 @@
+{
+  "buildCommand": "pnpm --filter veridex-frontend build",
+  "outputDirectory": "frontend/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/((?!api|papers|research-queries|jobs|health).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

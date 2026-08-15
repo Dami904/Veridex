@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "cockroachdb": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@cockroachlabs/mcp-server@latest"
+      ],
+      "env": {
+        "COCKROACH_DATABASE_URL": "${DATABASE_URL:-postgresql://user:password@free-tier14.aws-us-east-1.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full}"
+      }
+    }
+  }
+}

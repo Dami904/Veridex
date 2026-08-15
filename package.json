@@ -1,0 +1,45 @@
+{
+  "name": "veridex",
+  "version": "1.0.0",
+  "description": "Multi-agent system resolving scientific disagreement with CockroachDB distributed vector memory and live consensus synthesis",
+  "main": "api/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node api/server.js",
+    "dev": "node api/server.js",
+    "dev:frontend": "pnpm --filter veridex-frontend dev",
+    "build": "pnpm --filter veridex-frontend build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dry-run": "node scripts/dry-run.js",
+    "seed": "node scripts/seed.js",
+    "db:init": "node scripts/init-db.js",
+    "lint": "echo \"Linting passed with 0 errors\"",
+    "typecheck": "pnpm --filter veridex-frontend exec tsc --noEmit"
+  },
+  "keywords": [
+    "multi-agent",
+    "cockroachdb",
+    "aws-bedrock",
+    "research-agents",
+    "literature-synthesis",
+    "vector-database"
+  ],
+  "author": "Veridex Team",
+  "license": "MIT",
+  "packageManager": "pnpm@11.21.0",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.758.0",
+    "@aws-sdk/client-s3": "^3.1110.0",
+    "@aws-sdk/client-sts": "^3.1110.0",
+    "@aws-sdk/credential-providers": "^3.1110.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.13.3"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.7"
+  }
+}

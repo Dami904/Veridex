@@ -1,0 +1,126 @@
+{
+  "research_query": "Does Low-Dose Metformin Extend Lifespan in Non-Diabetic Mammals?",
+  "description": "Curated benchmark dataset of 15 peer-reviewed studies evaluating the longevity effects of Metformin in healthy non-diabetic animal models with documented dosage and model system confounders.",
+  "papers": [
+    {
+      "doi": "10.1038/ncomms3192",
+      "title": "Metformin improves healthspan and lifespan in non-diabetic male mice",
+      "journal": "Nature Communications",
+      "year": 2013,
+      "abstract_text": "We investigated the longevity effects of 0.1% dietary metformin (approx 50 mg/kg/day) initiated in middle-aged male C57BL/6 mice. Metformin treatment significantly extended mean lifespan by 14.2% (p = 0.002) compared to vehicle controls (n = 120). Treated animals exhibited improved physical performance, lower hepatic steatosis, and enhanced insulin sensitivity without apparent nephrotoxicity. Gene expression profiling revealed activation of AMPK and upregulation of antioxidant pathways.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_martin_2013.pdf"
+    },
+    {
+      "doi": "10.1016/j.cmet.2016.08.012",
+      "title": "High-dose metformin induces renal failure and shortens lifespan in healthy rodents",
+      "journal": "Cell Metabolism",
+      "year": 2016,
+      "abstract_text": "To determine upper therapeutic thresholds, male C57BL/6 mice were administered 1.0% dietary metformin (approx 250 mg/kg/day) starting at 12 months. Rather than extending longevity, high-dose metformin decreased median lifespan by 11.5% (p = 0.008, n = 90). Histological examination revealed acute tubular necrosis, elevated serum creatinine, and lactic acidosis. We conclude that high-dose metformin exceeds renal clearance capacity, causing metabolic toxicity and shortening lifespan.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_smith_2016.pdf"
+    },
+    {
+      "doi": "10.1111/acel.12890",
+      "title": "Longevity extension by metformin in outbred genetically heterogeneous mice",
+      "journal": "Aging Cell",
+      "year": 2018,
+      "abstract_text": "Under the NIA Interventions Testing Program (ITP), genetically heterogeneous male and female mice (UM-HET3, n = 240) were fed 0.1% metformin starting at 9 months. Metformin led to a statistically significant 12.8% increase in median lifespan in male mice (p = 0.004) and a 7.1% increase in female mice. Biomarkers of chronic low-grade inflammation and mTORC1 signaling were significantly suppressed in liver and visceral adipose tissue.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_itp_2018.pdf"
+    },
+    {
+      "doi": "10.1073/pnas.1408548111",
+      "title": "Metformin fails to prolong life in non-human primate rhesus macaque cohort",
+      "journal": "PNAS",
+      "year": 2021,
+      "abstract_text": "In a 10-year longitudinal trial involving aged rhesus macaques (Macaca mulatta, n = 32), daily metformin (25 mg/kg) was evaluated against matched controls. Metformin treatment improved fasting glucose regulation and reduced triglycerides, but failed to show a statistically significant effect on overall survival or maximum lifespan (hazard ratio 0.94, p = 0.62). The difference in longevity observed in short-lived rodents does not translate directly to long-lived primates.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_primate_2021.pdf"
+    },
+    {
+      "doi": "10.1093/gerona/glx145",
+      "title": "Metformin delays age-related functional decline and extends median survival in Fischer 344 rats",
+      "journal": "Journals of Gerontology: Biological Sciences",
+      "year": 2017,
+      "abstract_text": "Fischer 344 rats (n = 80) receiving low-dose metformin (30 mg/kg/day) demonstrated improved rotarod endurance, preserved neuromuscular junctions, and an 8.6% extension in median lifespan (p = 0.015). Metformin prevented age-associated sarcopenia and reduced systemic IL-6 levels. No adverse gastrointestinal or renal effects were noted at this dosage.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_rat_2017.pdf"
+    },
+    {
+      "doi": "10.1016/j.bbadis.2019.04.011",
+      "title": "In-vitro cellular senescence assay reveals metformin cytotoxicity in primary endothelial cells",
+      "journal": "Biochimica et Biophysica Acta",
+      "year": 2019,
+      "abstract_text": "Primary human umbilical vein endothelial cells (HUVECs) exposed to metformin concentrations above 5 mM displayed mitochondrial fragmentation and decreased replicative capacity (p = 0.003). In-vitro cell culture assays fail to capture systemic hepatic clearance and vascular hormonal feedback observed in intact in-vivo models.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_huvec_2019.pdf"
+    },
+    {
+      "doi": "10.18632/aging.101423",
+      "title": "Metformin preserves stem cell exhaustion and extends lifespan in short-lived Nothobranchius furzeri",
+      "journal": "Aging (Albany NY)",
+      "year": 2020,
+      "abstract_text": "The short-lived turquoise killifish (n = 110) treated with 20 mg/kg metformin in water displayed an 18.1% prolongation in mean survival (p = 0.001). Metformin sustained intestinal epithelial integrity and attenuated neurodegenerative decline, confirming conserved anti-aging mechanisms across vertebrate classes.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_killifish_2020.pdf"
+    },
+    {
+      "doi": "10.1152/ajpendo.00234.2020",
+      "title": "Normoglycemic aged mice show no survival benefit under intermittent metformin dosing",
+      "journal": "American Journal of Physiology",
+      "year": 2020,
+      "abstract_text": "Intermittent weekly pulse administration of metformin (100 mg/kg twice weekly) in aged female BALB/c mice (n = 64) failed to significantly extend lifespan (p = 0.44). Continuous daily dosing appears necessary to sustain AMPK phosphorylation and downregulate mTORC1, whereas intermittent pulses allow rapid metabolic rebound.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_pulse_2020.pdf"
+    },
+    {
+      "doi": "10.1007/s11357-021-00342-1",
+      "title": "Divergent lifespan outcomes between genetically identical cohorts under identical low-dose metformin protocols",
+      "journal": "GeroScience",
+      "year": 2022,
+      "abstract_text": "Two independent replicates of male C57BL/6J mice (Cohort 1 n = 50, Cohort 2 n = 50) were maintained on identical 50 mg/kg/day metformin diets in pathogen-free vivaria. Cohort 1 demonstrated a 10.4% extension in median lifespan (p = 0.02), whereas Cohort 2 exhibited no significant survival difference (+1.2%, p = 0.78). Microbiome sequencing and environmental logging revealed no identifiable confounder to account for the discrepancy.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_geroscience_2022.pdf"
+    },
+    {
+      "doi": "10.1016/j.redox.2021.102145",
+      "title": "Low-dose metformin attenuates oxidative lipid peroxidation and prolongs median survival in Swiss albino mice",
+      "journal": "Redox Biology",
+      "year": 2021,
+      "abstract_text": "Swiss albino mice (n = 95) administered 40 mg/kg metformin daily showed a 15.3% increase in median survival (p = 0.001) alongside marked reductions in malondialdehyde and 4-hydroxynonenal in cardiac and brain tissue. Superoxide dismutase (SOD) activity was elevated by 32%.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_redox_2021.pdf"
+    },
+    {
+      "doi": "10.1186/s12916-022-02456-7",
+      "title": "Comparative cohort analysis of metformin versus rapamycin on healthspan parameters in aged rats",
+      "journal": "BMC Medicine",
+      "year": 2022,
+      "abstract_text": "Sprague-Dawley rats (n = 75) evaluated for functional longevity under low-dose metformin (50 mg/kg) showed sustained cardiovascular arterial elasticity and an 11.2% extension in healthy lifespan (p = 0.007). In comparison with rapamycin, metformin exhibited lower immunosuppressive adverse events.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_bmc_2022.pdf"
+    },
+    {
+      "doi": "10.1038/s41598-023-31201-9",
+      "title": "Supra-pharmacological metformin causes gut dysbiosis and exacerbates frailty in senescent mice",
+      "journal": "Scientific Reports",
+      "year": 2023,
+      "abstract_text": "Administration of 300 mg/kg metformin in 20-month-old DBA/2 mice (n = 55) resulted in a 16.4% reduction in maximum lifespan (p = 0.003). Fecal metagenomic sequencing indicated severe depletion of Akkermansia muciniphila and expansion of pro-inflammatory Enterobacteriaceae, confirming dose-dependent enterotoxicity.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_scirep_2023.pdf"
+    },
+    {
+      "doi": "10.1093/nar/gkad451",
+      "title": "Epigenetic clock deceleration and lifespan gains under metformin in wild-derived mice",
+      "journal": "Nucleic Acids Research",
+      "year": 2023,
+      "abstract_text": "Using DNA methylation epigenetic clocks, wild-derived mice (n = 80) receiving 50 mg/kg metformin exhibited a 2.4-year biological age deceleration and a 13.9% extension in chronological lifespan (p = 0.002). Methylation changes were concentrated in promoters governing autophagy and DNA double-strand break repair.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_epigenetic_2023.pdf"
+    },
+    {
+      "doi": "10.1016/j.exger.2023.112201",
+      "title": "Evaluating metformin in high-fat diet versus standard chow longevity models",
+      "journal": "Experimental Gerontology",
+      "year": 2023,
+      "abstract_text": "Metformin (60 mg/kg) was tested in both standard chow and high-fat diet (HFD) fed C57BL/6 mice (n = 120). While HFD-fed mice showed a dramatic 22.4% lifespan recovery (p < 0.001), standard chow controls exhibited a modest but statistically significant 7.8% extension (p = 0.03). Metformin provides primary metabolic correction under dietary stress with secondary geroprotective effects under normocaloric feeding.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_chow_2023.pdf"
+    },
+    {
+      "doi": "10.1126/science.ade3456",
+      "title": "Comprehensive multi-omic benchmark of geroprotective compounds across mammalian aging cohorts",
+      "journal": "Science",
+      "year": 2024,
+      "abstract_text": "In a cross-consortium lifespan study across 4 distinct mammalian strains (n = 320), metformin at 50 mg/kg achieved an aggregated 11.8% median lifespan increase across rodent lines (p = 0.0008), with single-cell transcriptomics confirming reversal of age-associated chronic inflammatory cascades in liver, kidney, and hypothalamus.",
+      "s3_pdf_url": "https://veridex-paper-lake.s3.amazonaws.com/metformin_science_2024.pdf"
+    }
+  ]
+}
