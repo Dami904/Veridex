@@ -77,6 +77,22 @@ function localMockExtraction(userPrompt, systemPrompt, jsonOutput) {
     };
   }
 
+  // 3. Librarian Agent: Query Translation & MeSH Expansion
+  if (
+    systemPrompt.includes('Librarian') ||
+    systemPrompt.includes('optimal academic search') ||
+    systemPrompt.includes('standardized_hypothesis')
+  ) {
+    const rawClean = userPrompt.replace(/^User Research Question:\s*"/i, '').replace(/"$/, '');
+    const clean = rawClean.toLowerCase().replace(/postrate/g, 'prostate').replace(/\b(aw|does|m stuck|av been on this question since)\b/gi, '').trim();
+    return {
+      standardized_hypothesis: `Does ${clean} alter physiological endpoints?`,
+      primary_search_terms: clean || 'biomedical trial',
+      mesh_boolean_query: clean.split(' ').filter((w) => w.length > 3).join(' AND ') || 'prostate cancer',
+      synonyms_and_me_sh: [clean, 'clinical trial', 'prospective cohort'],
+    };
+  }
+
   // 3. Extractor Agent Study Parameter Ingestion
   const isPositive =
     userPrompt.toLowerCase().includes('extend') ||

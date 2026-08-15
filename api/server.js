@@ -13,6 +13,7 @@ import { generateBibtexExport, generateRisExport } from '../shared/citationExpor
 import { parsePdfBuffer } from '../shared/pdfParser.js';
 import { uploadToS3 } from '../shared/s3.js';
 import { jobManager } from './jobManager.js';
+import { logger, requestLoggingMiddleware } from '../shared/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -24,6 +25,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// Request Observability Logging
+app.use(requestLoggingMiddleware);
 
 // Security Middleware: Rate Limiters per threat model
 const globalLimiter = rateLimit({
@@ -465,7 +469,7 @@ if (fs.existsSync(distPath)) {
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
-    console.log(`[Veridex API] Server listening on http://localhost:${PORT}`);
+    logger.info(`Server listening on http://localhost:${PORT}`);
   });
 }
 

@@ -14,6 +14,8 @@
     "dry-run": "node scripts/dry-run.js",
     "seed": "node scripts/seed.js",
     "db:init": "node scripts/init-db.js",
+    "smoke": "node scripts/smoke.mjs",
+    "start:mcp": "node mcp/server.js",
     "lint": "eslint .",
     "typecheck": "pnpm --filter veridex-frontend exec tsc --noEmit"
   },

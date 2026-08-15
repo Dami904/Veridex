@@ -4,6 +4,7 @@ import { discoverLiteratureForQuery } from '../shared/literatureDiscovery.js';
 import { handleExtract } from '../lambdas/extractor/handler.js';
 import { handleArbitrate } from '../lambdas/arbiter/handler.js';
 import { handleQueryMatrix } from '../lambdas/query/handler.js';
+import { logger } from '../shared/logger.js';
 
 class SwarmJobManager extends EventEmitter {
   constructor() {
@@ -58,10 +59,15 @@ class SwarmJobManager extends EventEmitter {
     if (!job) return;
 
     job.status = 'RUNNING';
+    logger.agent('Orchestrator', `Starting Swarm synthesis job ${jobId.slice(0, 8)}`, {
+      jobId,
+      researchQuery: job.researchQuery,
+    });
 
     try {
       // 1. Discovery Phase (PubMed / Curated Registry)
       this.updateProgress(jobId, 15, 'Phase 1: Querying PubMed & Literature Discovery Engine...', `Searching peer-reviewed biomedical literature for "${job.researchQuery}"`);
+      logger.agent('Librarian', `Querying multi-source medical registries for "${job.researchQuery}"`, { jobId });
       const discovery = await discoverLiteratureForQuery(job.researchQuery);
 
       if (discovery.source === 'insufficient_literature' || (discovery.papers || []).length === 0) {
@@ -71,10 +77,17 @@ class SwarmJobManager extends EventEmitter {
       const papers = discovery.papers || [];
       const targetQuery = discovery.research_query || job.researchQuery;
 
+      logger.agent('Librarian', `Discovered ${papers.length} peer-reviewed studies from ${discovery.source}`, {
+        jobId,
+        source: discovery.source,
+        paperCount: papers.length,
+      });
+
       this.updateProgress(jobId, 30, `Phase 1: Retrieved ${papers.length} peer-reviewed studies (${discovery.source})`, `Discovered ${papers.length} papers from ${discovery.source}`);
 
       // 2. Extractor Agent Phase — Bounded Parallel Concurrent Processing
       this.updateProgress(jobId, 40, `Phase 2: Extractor Agent analyzing ${papers.length} studies in parallel...`, 'Generating Bedrock Titan V2 1024-dim embeddings & extracting structured clinical parameters');
+      logger.agent('Extractor', `Beginning batch extraction across ${papers.length} studies (concurrency=3)`, { jobId });
 
       const extractedResults = [];
       const concurrencyLimit = 3;
@@ -104,13 +117,21 @@ class SwarmJobManager extends EventEmitter {
         }
       }
 
+      logger.agent('Extractor', `Completed extraction for ${extractedResults.length}/${papers.length} studies`, { jobId });
+
       // 3. Arbiter Agent Phase (Pairwise Confounder Detection)
       this.updateProgress(jobId, 75, 'Phase 3: Arbiter Agent executing adversarial pairwise analysis...', 'Evaluating opposing study cohorts to isolate methodological confounders');
+      logger.agent('Arbiter', `Executing adversarial pairwise conflict analysis for "${targetQuery}"`, { jobId });
       const arbRes = await handleArbitrate({
         pathParameters: { query: targetQuery },
       });
       const arbBody = JSON.parse(arbRes.body);
       const arbitratedCount = (arbBody.new_contradictions || []).length;
+
+      logger.agent('Arbiter', `Resolved ${arbitratedCount} pairwise contradiction pairs`, {
+        jobId,
+        arbitratedCount,
+      });
 
       this.updateProgress(
         jobId,
@@ -121,6 +142,7 @@ class SwarmJobManager extends EventEmitter {
 
       // 4. Synthesizer Agent Phase (Deterministic Live Synthesis)
       this.updateProgress(jobId, 95, 'Phase 4: Synthesizer Agent computing deterministic confidence matrix...', 'Calculating exact statistics with zero arithmetic hallucination');
+      logger.agent('Synthesizer', 'Computing deterministic confidence matrix and executive narrative', { jobId });
       const matrixRes = await handleQueryMatrix({
         pathParameters: { query: targetQuery },
       });
@@ -130,6 +152,11 @@ class SwarmJobManager extends EventEmitter {
       job.progress = 100;
       job.currentStep = `Consensus Synthesis Complete • Confidence Grade [${matrixBody.aggregate?.confidence_tier || 'MODERATE'}]`;
       job.matrix = matrixBody;
+
+      logger.agent('Orchestrator', `Job ${jobId.slice(0, 8)} successfully finished [${matrixBody.aggregate?.confidence_tier}]`, {
+        jobId,
+        confidenceTier: matrixBody.aggregate?.confidence_tier,
+      });
 
       this.emit(`job:${jobId}:update`, {
         type: 'complete',
@@ -141,6 +168,7 @@ class SwarmJobManager extends EventEmitter {
     } catch (err) {
       job.status = 'FAILED';
       job.error = err.message;
+      logger.error(`Job ${jobId.slice(0, 8)} failed`, err, { jobId });
       this.emit(`job:${jobId}:update`, {
         type: 'error',
         error: err.message,

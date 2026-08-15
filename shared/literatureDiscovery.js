@@ -1,8 +1,10 @@
+import { executeLLMCall } from './llm.js';
+import { LIBRARIAN_SYSTEM_PROMPT } from './prompts.js';
+
 /**
- * Multi-Source Literature Discovery Engine
+ * Multi-Source Literature Discovery Engine with Autonomous LLM Librarian Agent
  * Integrates NCBI PubMed, Europe PMC, and CrossRef Scholarly Repositories (JAMA, Lancet, Nature, etc.)
- * with intelligent biomedical query normalization.
- * Strict Zero-Hallucination Policy: All papers retrieved from verified primary academic registries.
+ * with intelligent clinical translation, MeSH expansion, and zero arithmetic hallucination.
  */
 
 // Curated peer-reviewed benchmark corpora for instant exploration & offline resilience
@@ -121,12 +123,11 @@ const CURATED_TOPIC_REGISTRY = {
 };
 
 /**
- * Normalizes colloquial phrases, strips conversational filler, and corrects medical typos
+ * Deterministic Normalizer Fallback (Offline / Regex)
  */
 export function normalizeBiomedicalQuery(rawQuery) {
   let text = rawQuery.toLowerCase();
 
-  // Fix common medical typos
   text = text
     .replace(/\bpostrate\b/g, 'prostate')
     .replace(/\bprostata\b/g, 'prostate')
@@ -135,14 +136,12 @@ export function normalizeBiomedicalQuery(rawQuery) {
     .replace(/\bmetformn\b/g, 'metformin')
     .replace(/\brapamycn\b/g, 'rapamycin');
 
-  // Strip conversational filler & questions
   text = text
     .replace(/\b(aw|how|does|do|can|could|why|what|is|are|the|rate|of|in|on|alter|affect|change|impact|m stuck|av been on this question since)\b/gi, ' ')
     .replace(/[^\w\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // If query is about masturbation, expand to include ejaculation for clinical indexing
   if (text.includes('masturbation') && !text.includes('ejaculation')) {
     text = text.replace('masturbation', 'ejaculation OR masturbation');
   }
@@ -286,9 +285,9 @@ export async function searchEuropePMC(query, maxResults = 6) {
 /**
  * Universal Multi-Repository Discovery Engine:
  * 1. Checks curated benchmarks
- * 2. Normalizes biomedical query (typos & conversational filler)
- * 3. Aggregates PubMed + CrossRef (JAMA/Lancet) + Europe PMC
- * 4. Deduplicates and ranks by relevance
+ * 2. Dispatches LLM Librarian Agent to interpret conceptual queries & translate into MeSH search strings
+ * 3. Aggregates PubMed + CrossRef (JAMA/Lancet) + Europe PMC in parallel
+ * 4. Deduplicates and returns verified peer-reviewed literature
  */
 export async function discoverLiteratureForQuery(researchQuery) {
   const normalizedRaw = researchQuery.toLowerCase();
@@ -304,12 +303,34 @@ export async function discoverLiteratureForQuery(researchQuery) {
     }
   }
 
-  // 2. Clean & normalize query terms
-  const searchTerms = normalizeBiomedicalQuery(researchQuery);
+  // 2. Dispatch LLM Librarian Agent to interpret meaning & extract clinical concepts
+  let searchTerms;
+  let meshQuery;
+
+  try {
+    const librarianResult = await executeLLMCall({
+      systemPrompt: LIBRARIAN_SYSTEM_PROMPT,
+      userPrompt: `User Research Question: "${researchQuery}"`,
+      jsonOutput: true,
+    });
+
+    const parsedPlan = librarianResult.content || {};
+    if (parsedPlan.primary_search_terms) {
+      searchTerms = parsedPlan.primary_search_terms;
+      meshQuery = parsedPlan.mesh_boolean_query || parsedPlan.primary_search_terms;
+    } else {
+      searchTerms = normalizeBiomedicalQuery(researchQuery);
+      meshQuery = searchTerms;
+    }
+  } catch (err) {
+    console.warn('[Librarian Agent Fallback to Normalizer]', err.message);
+    searchTerms = normalizeBiomedicalQuery(researchQuery);
+    meshQuery = searchTerms;
+  }
 
   // 3. Multi-Repository Aggregation in Parallel
   const [pubmedPapers, crossRefPapers, europePmcPapers] = await Promise.all([
-    searchPubMed(searchTerms, 6),
+    searchPubMed(meshQuery, 6),
     searchCrossRef(searchTerms, 5),
     searchEuropePMC(searchTerms, 5),
   ]);
