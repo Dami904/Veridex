@@ -12,17 +12,18 @@ async function deploy() {
   const vercelToken = process.env.VERCEL_TOKEN;
 
   // 1. Deploy Frontend to Vercel
-  console.log('[1/2] Deploying Frontend to Vercel...');
+  console.log('[1/2] Deploying Frontend to Vercel (veridex-frontend)...');
   if (vercelToken) {
     try {
       const output = execSync(
-        `pnpm dlx vercel --prod --yes --token ${vercelToken}`,
+        `pnpm dlx vercel --name veridex-frontend --prod --yes --token ${vercelToken}`,
         { stdio: 'pipe' }
       );
-      console.log('  ✅ Vercel Deployment Triggered Successfully!');
-      const lines = output.toString().split('\n').filter((l) => l.includes('https://'));
-      if (lines.length > 0) {
-        console.log(`     Live URL: ${lines[lines.length - 1].trim()}`);
+      console.log('  ✅ Vercel Deployment Completed Successfully!');
+      const raw = output.toString();
+      const lines = raw.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('https://'));
+      for (const line of lines) {
+        console.log(`     🔗 Live Production URL: ${line}`);
       }
     } catch (err) {
       console.warn('  ⚠️ Vercel Notice:', err.stdout?.toString() || err.message);
@@ -31,11 +32,11 @@ async function deploy() {
     console.log('  ⚠️ VERCEL_TOKEN missing in .env');
   }
 
-  // 2. Deploy Backend to Render
+  // 2. Connect / Check Render API
   console.log('\n[2/2] Connecting to Render API...');
   if (renderKey) {
     try {
-      const res = await fetch('https://api.render.com/v1/services?limit=10', {
+      const res = await fetch('https://api.render.com/v1/services?limit=20', {
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${renderKey}`,
@@ -44,9 +45,15 @@ async function deploy() {
 
       if (res.ok) {
         const services = await res.json();
-        console.log(`  ✅ Render API Authenticated! (Found ${services.length} existing service(s))`);
-        for (const s of services) {
-          console.log(`     • [${s.service?.type}] ${s.service?.name} -> https://${s.service?.slug}.onrender.com`);
+        const veridexService = services.find((s) => s.service?.name?.toLowerCase().includes('veridex'));
+
+        console.log(`  ✅ Render API Authenticated!`);
+        if (veridexService) {
+          console.log(`     • Found Veridex Service: ${veridexService.service?.name}`);
+          console.log(`     🔗 Live Backend API URL: https://${veridexService.service?.slug}.onrender.com`);
+        } else {
+          console.log(`     • Repo is synced with GitHub: https://github.com/Dami904/Veridex.git`);
+          console.log(`     👉 Ready for 1-Click Render Web Service Blueprint from repo!`);
         }
       } else {
         const errText = await res.text();

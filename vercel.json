@@ -1,4 +1,5 @@
 {
+  "name": "veridex-frontend",
   "buildCommand": "pnpm --filter veridex-frontend build",
   "outputDirectory": "frontend/dist",
   "framework": "vite",
