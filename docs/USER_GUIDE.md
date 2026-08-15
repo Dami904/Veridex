@@ -20,8 +20,8 @@ Welcome to **Veridex**, the autonomous scientific consensus engine powered by Co
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                                VERIDEX OPERATION FLOW                                  │
 │                                                                                        │
-│   1. Enter Hypothesis ──▶ 2. Automated PubMed ──▶ 3. Extractor Agent Live Analysis     │
-│      (or select preset)       Literature Search       (N, p-values, Titan V2 Vectors)  │
+│   1. Enter Hypothesis ──▶ 2. Real-Time PubMed  ──▶ 3. Extractor Agent Live Analysis    │
+│      (or select preset)       Discovery Stream        (N, p-values, Titan V2 Vectors)  │
 │                                                              │                         │
 │                                                              ▼                         │
 │   6. 1-Click Export   ◀── 5. Contradiction Graph ◀── 4. Adversarial Arbiter            │
@@ -41,31 +41,34 @@ You can evaluate **any medical, biological, or scientific question in the world*
    - *Tip*: You can also click any of the **Topic Presets** below the search bar for instant 1-click loading (Metformin, GLP-1, Rapamycin).
 3. Click **"Search PubMed & Synthesize"**.
 4. The system will:
+   - Stream live Server-Sent Events (SSE) from the backend.
    - Query NCBI PubMed Central API in real time.
-   - Dispatch the **Extractor Agent** to parse sample sizes ($N$), effect directions, and $p$-values.
+   - Dispatch the **Extractor Agent** across parallel batches to extract sample sizes ($N$), effect directions, and $p$-values.
    - Dispatch the **Arbiter Agent** to resolve methodological disputes.
    - Render the complete consensus matrix.
 
 ---
 
-### 2. 📊 Reading the Synthesis Verdict Card
-At the top of the evidence dashboard, the **Synthesis Card** displays the mathematical consensus:
-- **Confidence Tier Badge** (`[HIGH]`, `[MODERATE]`, or `[LOW]`):
-  - **HIGH**: $\ge 10$ studies, $>70\%$ agreement, statistically significant ($p < 0.05$), low risk of bias, and 0 unresolved contradictions.
-  - **MODERATE**: $\ge 5$ studies, majority agreement, resolved confounders.
-  - **LOW**: Disputed evidence base with open irreconcilable contradictions or high risk of bias.
-- **Key Metrics Grid**:
-  - Total Studies Evaluated
-  - Positive vs. Negative vs. Neutral Study counts
-  - Average Reported Effect Size ($\%$)
-  - Statistically Significant Studies ($p < 0.05$)
-  - Methodological Risk of Bias breakdown (Low / Moderate / High)
-- **Executive Synthesis Narrative**: Plain-English, auditable summary explaining the primary drivers of consensus.
+### 2. 📊 Reading the Synthesis Verdict Card & Exact Tier Criteria
+At the top of the evidence dashboard, the **Synthesis Card** displays the mathematical consensus computed with **zero LLM arithmetic**:
+
+#### 🎖️ Exact Deterministic Confidence Tier Rules (`lambdas/synthesizer/handler.js`):
+- 🟢 **`HIGH`**: 
+  - Total studies $\ge 5$
+  - Consensus directional ratio $\ge 80\%$ (i.e. $\ge 80\%$ of studies agree on positive or negative)
+  - Majority of studies have **Low Risk of Bias**
+  - Open contradictions $\le$ resolved contradictions
+- 🟡 **`MODERATE`**: 
+  - Total studies $\ge 3$
+  - Consensus directional ratio $\ge 60\%$
+  - Open contradictions $\le$ resolved contradictions
+- 🔴 **`LOW`**: 
+  - Fewer than 3 studies, or consensus ratio $< 60\%$, or open/unresolved contradictions outweigh resolved contradictions.
 
 ---
 
 ### 3. 🕸️ Exploring the Visual Contradiction & Confounder Graph
-Directly below the synthesis card is the interactive **Visual Contradiction Topology Graph**:
+Directly below the synthesis card is the interactive **Visual Topology Graph**:
 - **Emerald Nodes (Left)**: Studies reporting positive / beneficial outcomes.
 - **Rose Nodes (Right)**: Studies reporting negative / contradictory outcomes.
 - **Center Confounder Bridges**:
@@ -79,11 +82,8 @@ If you have your own research papers, unpublished manuscripts, or specific DOIs:
 
 1. Click the **"+ Add Paper"** button in the top right.
 2. Choose your input method:
-   - **Tab 1: Abstract & DOI**: Paste raw study text, title, journal, year, and DOI. You can also click the quick pre-fill buttons (*+ Positive Low-Dose*, *- Negative High-Dose*, *GLP-1 Case*).
-   - **Tab 2: PDF Document Upload**: Drag and drop any `.pdf` research paper. Veridex will:
-     - Parse the full text, title, and abstract via our built-in PDF parser.
-     - Upload and preserve the binary file in the **Amazon S3 Paper Lake** (`veridex-paper-lake-54271`).
-     - Ingest parameters directly into CockroachDB vector memory.
+   - **Tab 1: Abstract & DOI**: Paste raw study text, title, journal, year, and DOI.
+   - **Tab 2: PDF Document Upload**: Drag and drop any `.pdf` research paper. Veridex parses the text, attempts cloud persistence to the **Amazon S3 Paper Lake** (`veridex-paper-lake-54271`), and ingests parameters directly into CockroachDB vector memory. If S3 credentials are unavailable, it logs an explicit notification and records `s3_pdf_url: null` without broken 404 links.
 3. Click **"Ingest & Synthesize"**. The matrix recalculates instantly.
 
 ---
@@ -109,8 +109,6 @@ To use Veridex results in your research papers, grants, or publications:
 ---
 
 ## 💻 Programmatic API Reference
-
-You can also query Veridex programmatically from Python, curl, or external agents:
 
 ```bash
 # 1. Health & Cluster Status
