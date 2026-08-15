@@ -60,37 +60,52 @@ class SwarmJobManager extends EventEmitter {
     job.status = 'RUNNING';
 
     try {
-      // 1. Discovery Phase (PubMed / arXiv / Registry)
-      this.updateProgress(jobId, 10, 'Phase 1: Querying PubMed & Scientific Literature APIs...', `Searching literature for "${job.researchQuery}"`);
+      // 1. Discovery Phase (PubMed / Curated Registry)
+      this.updateProgress(jobId, 15, 'Phase 1: Querying PubMed & Literature Discovery Engine...', `Searching peer-reviewed biomedical literature for "${job.researchQuery}"`);
       const discovery = await discoverLiteratureForQuery(job.researchQuery);
+
+      if (discovery.source === 'insufficient_literature' || (discovery.papers || []).length === 0) {
+        throw new Error(discovery.message || `Insufficient peer-reviewed studies found on PubMed for "${job.researchQuery}". Veridex strictly refuses to fabricate literature.`);
+      }
+
       const papers = discovery.papers || [];
       const targetQuery = discovery.research_query || job.researchQuery;
 
-      this.updateProgress(jobId, 25, `Phase 1: Discovered ${papers.length} peer-reviewed studies`, `Retrieved ${papers.length} papers from ${discovery.source}`);
+      this.updateProgress(jobId, 30, `Phase 1: Retrieved ${papers.length} peer-reviewed studies (${discovery.source})`, `Discovered ${papers.length} papers from ${discovery.source}`);
 
-      // 2. Extractor Agent Phase (Titan V2 Embeddings + Structured Extractions)
+      // 2. Extractor Agent Phase — Bounded Parallel Concurrent Processing
+      this.updateProgress(jobId, 40, `Phase 2: Extractor Agent analyzing ${papers.length} studies in parallel...`, 'Generating Bedrock Titan V2 1024-dim embeddings & extracting structured clinical parameters');
+
       const extractedResults = [];
-      for (let i = 0; i < papers.length; i++) {
-        const paper = papers[i];
-        const pct = Math.round(25 + ((i + 1) / papers.length) * 35);
-        this.updateProgress(
-          jobId,
-          pct,
-          `Phase 2: Extractor Agent analyzing study [${i + 1}/${papers.length}]...`,
-          `Generating Bedrock Titan V2 1024-dim embedding & extracting parameters for "${paper.title.slice(0, 50)}..."`
-        );
-
-        const extRes = await handleExtract({
-          body: {
-            ...paper,
-            research_query: targetQuery,
-          },
+      const concurrencyLimit = 3;
+      for (let i = 0; i < papers.length; i += concurrencyLimit) {
+        const chunk = papers.slice(i, i + concurrencyLimit);
+        const chunkPromises = chunk.map(async (paper, idx) => {
+          const globalIdx = i + idx + 1;
+          const extRes = await handleExtract({
+            body: {
+              ...paper,
+              research_query: targetQuery,
+            },
+          });
+          return { paperTitle: paper.title, result: JSON.parse(extRes.body), index: globalIdx };
         });
-        extractedResults.push(JSON.parse(extRes.body));
+
+        const chunkResults = await Promise.all(chunkPromises);
+        for (const res of chunkResults) {
+          extractedResults.push(res.result);
+          const currentPct = Math.min(70, Math.round(40 + (extractedResults.length / papers.length) * 30));
+          this.updateProgress(
+            jobId,
+            currentPct,
+            `Phase 2: Extracted parameters for study [${extractedResults.length}/${papers.length}]`,
+            `Extracted: "${res.paperTitle.slice(0, 45)}..."`
+          );
+        }
       }
 
       // 3. Arbiter Agent Phase (Pairwise Confounder Detection)
-      this.updateProgress(jobId, 70, 'Phase 3: Arbiter Agent executing adversarial pairwise analysis...', 'Evaluating opposing effect directions to isolate methodological confounders');
+      this.updateProgress(jobId, 75, 'Phase 3: Arbiter Agent executing adversarial pairwise analysis...', 'Evaluating opposing study cohorts to isolate methodological confounders');
       const arbRes = await handleArbitrate({
         pathParameters: { query: targetQuery },
       });
@@ -99,7 +114,7 @@ class SwarmJobManager extends EventEmitter {
 
       this.updateProgress(
         jobId,
-        85,
+        88,
         `Phase 3: Arbiter resolved ${arbitratedCount} contradiction pairs`,
         `Identified ${arbitratedCount} pairwise conflicts and assigned confidence tiers`
       );

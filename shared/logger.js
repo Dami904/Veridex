@@ -10,6 +10,7 @@ export function createLogger(serviceName = 'veridex-agent') {
       console.log(JSON.stringify({
         level: 'INFO',
         service: serviceName,
+        correlationId: context.correlationId || randomUUID(),
         timestamp: new Date().toISOString(),
         message,
         ...context,

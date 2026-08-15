@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { searchVectorPapers, Paper } from '../api/client';
-import { Database, Search, Loader2, X, Sparkles, ExternalLink } from 'lucide-react';
+import { Database, Search, Loader2, X, Sparkles } from 'lucide-react';
 
 interface VectorSearchModalProps {
   isOpen: boolean;

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
 import { handleExtract } from '../lambdas/extractor/handler.js';
 import { handleArbitrate } from '../lambdas/arbiter/handler.js';
 import { handleQueryMatrix } from '../lambdas/query/handler.js';
@@ -24,9 +25,27 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Security Middleware: Rate Limiters per threat model
+const globalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 180,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please retry in 60 seconds.' },
+});
+
+const writeLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 45,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Write rate limit exceeded. Please throttle agent synthesis requests.' },
+});
+
+app.use(globalLimiter);
 app.use(cors({ origin: '*' }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.raw({ type: 'application/pdf', limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.raw({ type: 'application/pdf', limit: '25mb' }));
 
 // Healthcheck & Configuration Status
 app.get('/health', async (req, res) => {
@@ -40,8 +59,13 @@ app.get('/health', async (req, res) => {
 });
 
 // POST /papers — Ingestion & Extraction (Titan V2 1024-dim Vector + Extractor Agent)
-app.post('/papers', async (req, res) => {
+app.post('/papers', writeLimiter, async (req, res) => {
   try {
+    const { abstract_text } = req.body || {};
+    if (abstract_text && typeof abstract_text === 'string' && abstract_text.length > 25000) {
+      return res.status(400).json({ error: 'Abstract text exceeds maximum allowed limit of 25KB.' });
+    }
+
     const result = await handleExtract({ body: req.body });
     res.status(result.statusCode).json(JSON.parse(result.body));
   } catch (err) {
@@ -50,7 +74,7 @@ app.post('/papers', async (req, res) => {
 });
 
 // POST /papers/upload-pdf — Real PDF Upload Parser + S3 Storage + Live Extractor
-app.post('/papers/upload-pdf', async (req, res) => {
+app.post('/papers/upload-pdf', writeLimiter, async (req, res) => {
   try {
     const researchQuery = req.query.research_query || req.headers['x-research-query'];
     if (!researchQuery) {
@@ -137,8 +161,8 @@ app.post('/papers/search', async (req, res) => {
   }
 });
 
-// POST /jobs/synthesize — Start Background Swarm Synthesis Job
-app.post('/jobs/synthesize', async (req, res) => {
+// POST /jobs/synthesize — Start Background Swarm Synthesis Job with SSE Streaming
+app.post('/jobs/synthesize', writeLimiter, async (req, res) => {
   try {
     const { research_query } = req.body;
     if (!research_query) {
@@ -163,7 +187,7 @@ app.post('/jobs/synthesize', async (req, res) => {
   }
 });
 
-// GET /jobs/:jobId/stream — Server-Sent Events (SSE) Progress Stream
+// GET /jobs/:jobId/stream — Server-Sent Events (SSE) Real-Time Progress Stream
 app.get('/jobs/:jobId/stream', (req, res) => {
   const { jobId } = req.params;
   const job = jobManager.getJob(jobId);
@@ -197,7 +221,7 @@ app.get('/jobs/:jobId/stream', (req, res) => {
 });
 
 // POST /research-queries/:query/arbitrate — Runs Arbiter over unverified pairs
-app.post('/research-queries/:query/arbitrate', async (req, res) => {
+app.post('/research-queries/:query/arbitrate', writeLimiter, async (req, res) => {
   try {
     const result = await handleArbitrate({
       pathParameters: { query: decodeURIComponent(req.params.query) },
@@ -221,7 +245,7 @@ app.get('/research-queries/:query/matrix', async (req, res) => {
 });
 
 // POST /research-queries/discover-and-synthesize — Automated Literature Discovery
-app.post('/research-queries/discover-and-synthesize', async (req, res) => {
+app.post('/research-queries/discover-and-synthesize', writeLimiter, async (req, res) => {
   try {
     const { research_query } = req.body;
     if (!research_query) {
@@ -229,18 +253,34 @@ app.post('/research-queries/discover-and-synthesize', async (req, res) => {
     }
 
     const discovery = await discoverLiteratureForQuery(research_query);
+
+    if (discovery.source === 'insufficient_literature' || (discovery.papers || []).length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'INSUFFICIENT_LITERATURE',
+        message: discovery.message || `Fewer than 2 peer-reviewed studies found for "${research_query}". Veridex strictly refuses to synthesize fabricated literature.`,
+      });
+    }
+
     const targetQuery = discovery.research_query || research_query;
     const papers = discovery.papers || [];
 
+    // Parallel Bounded Extraction (batches of 3)
     const extractedResults = [];
-    for (const paper of papers) {
-      const extRes = await handleExtract({
-        body: {
-          ...paper,
-          research_query: targetQuery,
-        },
-      });
-      extractedResults.push(JSON.parse(extRes.body));
+    const concurrency = 3;
+    for (let i = 0; i < papers.length; i += concurrency) {
+      const batch = papers.slice(i, i + concurrency);
+      const batchResults = await Promise.all(
+        batch.map((p) =>
+          handleExtract({
+            body: {
+              ...p,
+              research_query: targetQuery,
+            },
+          }).then((res) => JSON.parse(res.body))
+        )
+      );
+      extractedResults.push(...batchResults);
     }
 
     const arbRes = await handleArbitrate({
@@ -349,9 +389,16 @@ app.get('/papers/:id', async (req, res) => {
   }
 });
 
-// POST /seed — Seeds the demo dataset into CockroachDB & runs Arbiter
-app.post('/seed', async (req, res) => {
+// POST /seed — Protected database seeder
+app.post('/seed', writeLimiter, async (req, res) => {
   try {
+    const adminKey = process.env.ADMIN_API_KEY;
+    const providedKey = req.headers['x-veridex-admin-key'] || req.headers['authorization']?.replace('Bearer ', '');
+
+    if (adminKey && adminKey !== providedKey && process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ error: 'Unauthorized: Invalid or missing X-Veridex-Admin-Key' });
+    }
+
     const seedPath = path.resolve(__dirname, '../seed_data/demo_dataset.json');
     if (!fs.existsSync(seedPath)) {
       return res.status(404).json({ error: 'Seed dataset file not found' });
@@ -386,7 +433,7 @@ app.post('/seed', async (req, res) => {
   }
 });
 
-// Serve built frontend assets if dist directory exists (e.g. Render all-in-one deploy)
+// Serve built frontend assets if dist directory exists
 const distPath = path.resolve(__dirname, '../frontend/dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));

@@ -5,7 +5,7 @@ let pdfParse = null;
 
 try {
   pdfParse = require('pdf-parse');
-} catch (e) {
+} catch {
   // Graceful fallback if module is missing
 }
 
@@ -32,14 +32,14 @@ export async function parsePdfBuffer(dataBuffer) {
     const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
 
     // Heuristics for extracting title from top of document
-    let title = lines.slice(0, 3).join(' ').replace(/^(article|research article|brief report|review|paper|%PDF-[0-9.]+)\s*[:\-]?\s*/i, '');
+    let title = lines.slice(0, 3).join(' ').replace(/^(article|research article|brief report|review|paper|%PDF-[0-9.]+)\s*[:-]?\s*/i, '');
     if (title.length > 200) {
       title = title.slice(0, 197) + '...';
     }
 
     // Try finding Abstract block
     let abstract = '';
-    const abstractMatch = text.match(/(?:abstract|summary)\s*[:\-]?\s*([\s\S]{100,1800}?)(?:\n\s*(?:introduction|keywords|background|methods|1\.\s+introduction))/i);
+    const abstractMatch = text.match(/(?:abstract|summary)\s*[:-]?\s*([\s\S]{100,1800}?)(?:\n\s*(?:introduction|keywords|background|methods|1\.\s+introduction))/i);
 
     if (abstractMatch && abstractMatch[1]) {
       abstract = abstractMatch[1].replace(/\s+/g, ' ').trim();

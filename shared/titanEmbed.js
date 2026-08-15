@@ -120,7 +120,7 @@ export async function generateTitanEmbedding(text) {
     if (responseBody.embedding && Array.isArray(responseBody.embedding)) {
       return responseBody.embedding;
     }
-  } catch (err1) {
+  } catch {
     // Continue to Tier 2
   }
 
@@ -134,7 +134,7 @@ export async function generateTitanEmbedding(text) {
     if (cohereBody.embeddings && cohereBody.embeddings[0] && cohereBody.embeddings[0].length === 1024) {
       return cohereBody.embeddings[0];
     }
-  } catch (err2) {
+  } catch {
     // Continue to Tier 3
   }
 
@@ -148,7 +148,7 @@ export async function generateTitanEmbedding(text) {
       const mag = Math.sqrt(raw.reduce((sum, v) => sum + v * v, 0));
       return raw.map((v) => (mag > 0 ? v / mag : 0));
     }
-  } catch (err3) {
+  } catch {
     // Continue to Tier 4
   }
 

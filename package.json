@@ -14,7 +14,7 @@
     "dry-run": "node scripts/dry-run.js",
     "seed": "node scripts/seed.js",
     "db:init": "node scripts/init-db.js",
-    "lint": "echo \"Linting passed with 0 errors\"",
+    "lint": "eslint .",
     "typecheck": "pnpm --filter veridex-frontend exec tsc --noEmit"
   },
   "keywords": [
@@ -36,10 +36,14 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.6.2",
     "pdf-parse": "^2.4.5",
     "pg": "^8.13.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
+    "typescript-eslint": "^8.67.0",
     "vitest": "^3.0.7"
   }
 }

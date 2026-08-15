@@ -47,7 +47,7 @@ async function syncVercelEnv() {
   console.log('\n[2/2] Triggering Vercel Production Build with live Render backend...');
   try {
     const deployCmd = `pnpm dlx vercel --prod --yes --token ${token} --build-env VITE_API_URL=${renderUrl}`;
-    const output = execSync(deployCmd, { stdio: 'pipe' });
+    execSync(deployCmd, { stdio: 'pipe' });
     console.log('  ✅ Vercel Production Deployment Succeeded!');
     console.log(`     🔗 Live Frontend URL : https://veridex-frontend.vercel.app`);
     console.log(`     🔗 Live Backend API  : ${renderUrl}`);

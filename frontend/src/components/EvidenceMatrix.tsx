@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Paper, StudyExtraction } from '../api/client';
-import { FileText, ExternalLink, Info, CheckCircle2, XCircle, MinusCircle, HelpCircle } from 'lucide-react';
+import { FileText, ExternalLink, Info, CheckCircle2, XCircle, MinusCircle, HelpCircle, ShieldCheck, Database, UploadCloud } from 'lucide-react';
 
 interface EvidenceMatrixProps {
   papers: Paper[];
@@ -47,6 +47,29 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
           </span>
         );
     }
+  };
+
+  const getProvenanceBadge = (paper?: Paper) => {
+    const prov = paper?.provenance;
+    if (prov === 'PUBMED_CENTRAL' || paper?.pmid) {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <Database className="w-2.5 h-2.5" /> PubMed Central
+        </span>
+      );
+    }
+    if (prov === 'USER_UPLOAD' || paper?.s3_pdf_url) {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <UploadCloud className="w-2.5 h-2.5" /> S3 Paper Lake
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <ShieldCheck className="w-2.5 h-2.5" /> Curated Benchmark
+      </span>
+    );
   };
 
   const getBiasBadge = (bias: string | null) => {
@@ -99,19 +122,20 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
           <thead className="bg-slate-950/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
             <tr>
               <th className="py-3 px-4">Study / Paper Title</th>
+              <th className="py-3 px-3">Provenance</th>
               <th className="py-3 px-3">Model System</th>
               <th className="py-3 px-3 text-right">Sample (N)</th>
               <th className="py-3 px-3 text-center">Direction</th>
               <th className="py-3 px-3 text-right">Effect Size</th>
               <th className="py-3 px-3 text-right">p-value</th>
               <th className="py-3 px-3 text-center">Risk of Bias</th>
-              <th className="py-3 px-4 text-center">Evidence</th>
+              <th className="py-3 px-4 text-center">Audit</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
             {filteredExtractions.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-500">
+                <td colSpan={9} className="py-8 text-center text-slate-500">
                   No extracted studies found for this filter.
                 </td>
               </tr>
@@ -132,6 +156,10 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
                         <span>{paper?.journal || 'Journal'}</span>
                         {paper?.year && <span>• {paper.year}</span>}
                       </div>
+                    </td>
+
+                    <td className="py-3.5 px-3 whitespace-nowrap">
+                      {getProvenanceBadge(paper)}
                     </td>
 
                     <td className="py-3.5 px-3 text-slate-300 max-w-[140px] truncate">
@@ -173,7 +201,7 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
                           if (paper) setSelectedPaper({ paper, extraction });
                         }}
                         className="inline-flex items-center gap-1 text-slate-400 hover:text-emerald-400 transition-colors p-1"
-                        title="View Evidence Snippet"
+                        title="View Evidence Snippet & Citations"
                       >
                         <Info className="w-4 h-4" />
                       </button>
@@ -192,13 +220,16 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
           <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-800">
               <div>
-                <span className="text-[11px] font-mono text-emerald-400 uppercase tracking-wide">
-                  Paper Detail & Audit Trail
-                </span>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-mono text-emerald-400 uppercase tracking-wide">
+                    Paper Detail & Audit Trail
+                  </span>
+                  {getProvenanceBadge(selectedPaper.paper)}
+                </div>
                 <h4 className="text-lg font-bold text-white mt-1">
                   {selectedPaper.paper.title}
                 </h4>
-                <div className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-3">
+                <div className="text-xs text-slate-400 mt-2 flex flex-wrap items-center gap-3">
                   <span>Journal: {selectedPaper.paper.journal || 'N/A'}</span>
                   <span>Year: {selectedPaper.paper.year || 'N/A'}</span>
                   {selectedPaper.paper.doi && (
@@ -209,6 +240,28 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
                       className="inline-flex items-center gap-1 text-emerald-400 hover:underline"
                     >
                       DOI: {selectedPaper.paper.doi}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {selectedPaper.paper.pmid && (
+                    <a
+                      href={`https://pubmed.ncbi.nlm.nih.gov/${selectedPaper.paper.pmid}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-400 hover:underline"
+                    >
+                      PMID: {selectedPaper.paper.pmid}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {selectedPaper.paper.s3_pdf_url && (
+                    <a
+                      href={selectedPaper.paper.s3_pdf_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-amber-400 hover:underline"
+                    >
+                      S3 PDF Artifact
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   )}

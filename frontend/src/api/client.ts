@@ -1,11 +1,13 @@
 export interface Paper {
   id: string;
   doi: string | null;
+  pmid?: string | null;
   title: string;
   journal: string | null;
   year: number | null;
   abstract_text: string;
   s3_pdf_url: string | null;
+  provenance?: 'PUBMED_CENTRAL' | 'CURATED_BENCHMARK' | 'USER_UPLOAD';
   created_at: string;
   distance?: number;
   similarity_pct?: number;
@@ -30,6 +32,9 @@ export interface StudyExtraction {
   paper_title?: string;
   paper_year?: number;
   journal?: string;
+  doi?: string | null;
+  pmid?: string | null;
+  provenance?: 'PUBMED_CENTRAL' | 'CURATED_BENCHMARK' | 'USER_UPLOAD';
 }
 
 export interface Contradiction {
@@ -148,8 +153,86 @@ export async function discoverAndSynthesize(research_query: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ research_query }),
   });
-  if (!res.ok) throw new Error(`Literature discovery & synthesis failed: ${res.statusText}`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.message || `Literature discovery & synthesis failed: ${res.statusText}`);
+  }
   return res.json();
+}
+
+/**
+ * Real-time SSE Stream for 3-Phase Swarm Agent Execution
+ */
+export function streamSynthesizeJob(
+  research_query: string,
+  onProgress: (event: { progress: number; step: string; log?: string }) => void,
+  onComplete: (matrix: MatrixPayload) => void,
+  onError: (error: string) => void
+): () => void {
+  let eventSource: EventSource | null = null;
+  let isAborted = false;
+
+  fetch(`${API_BASE}/jobs/synthesize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ research_query }),
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Job creation failed: ${res.statusText}`);
+      }
+      return res.json();
+    })
+    .then((data) => {
+      if (isAborted) return;
+      const streamUrl = `${API_BASE}/jobs/${data.jobId}/stream`;
+      eventSource = new EventSource(streamUrl);
+
+      eventSource.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload.type === 'progress') {
+            onProgress({
+              progress: payload.progress || 0,
+              step: payload.step || 'Processing...',
+              log: payload.log,
+            });
+          } else if (payload.type === 'complete') {
+            eventSource?.close();
+            onComplete(payload.matrix);
+          } else if (payload.type === 'error') {
+            eventSource?.close();
+            onError(payload.error || 'Swarm execution failed');
+          }
+        } catch (err: any) {
+          console.error('[SSE Parse Notice]', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource?.close();
+        if (!isAborted) {
+          // Fallback to direct HTTP endpoint if SSE dropped
+          discoverAndSynthesize(research_query)
+            .then((res) => onComplete(res.matrix))
+            .catch((err) => onError(err.message));
+        }
+      };
+    })
+    .catch((err) => {
+      if (!isAborted) {
+        // Direct HTTP fallback
+        discoverAndSynthesize(research_query)
+          .then((res) => onComplete(res.matrix))
+          .catch((err2) => onError(err2.message || err.message));
+      }
+    });
+
+  return () => {
+    isAborted = true;
+    eventSource?.close();
+  };
 }
 
 export async function searchVectorPapers(query: string, limit = 6): Promise<VectorSearchResult> {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Contradiction, StudyExtraction, Paper } from '../api/client';
-import { GitCommit, Sparkles, CheckCircle2, AlertTriangle, ExternalLink, Network } from 'lucide-react';
+import { GitCommit, Sparkles, CheckCircle2, Network } from 'lucide-react';
 
 interface ContradictionGraphProps {
   contradictions: Contradiction[];
@@ -41,20 +41,6 @@ export const ContradictionGraph: React.FC<ContradictionGraphProps> = ({
         ];
 
   const currentSelection = selectedContradiction || activeContradictions[0];
-
-  const paperA =
-    papers.find((p) => p.id === currentSelection?.paper_a_id) ||
-    papers.find((p) => p.title?.toLowerCase().includes('improves')) || {
-      title: 'Low-dose metformin improves healthspan and longevity in mice',
-      journal: 'Nature Communications (2013)',
-    };
-
-  const paperB =
-    papers.find((p) => p.id === currentSelection?.paper_b_id) ||
-    papers.find((p) => p.title?.toLowerCase().includes('renal') || p.title?.toLowerCase().includes('transaminitis')) || {
-      title: 'High concentration metformin causes acute transaminitis and toxicity',
-      journal: 'Toxicological Sciences (2025)',
-    };
 
   return (
     <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur-md relative overflow-hidden">
@@ -105,7 +91,6 @@ export const ContradictionGraph: React.FC<ContradictionGraphProps> = ({
             {(posExtractions.slice(0, 3).length > 0 ? posExtractions.slice(0, 3) : [1, 2, 3]).map((item, idx) => {
               const p = typeof item === 'object' ? papers.find((paper) => paper.id === item.paper_id) : null;
               const title = p?.title || (idx === 0 ? 'Low-Dose Metformin Extends Lifespan (10mg/kg)' : idx === 1 ? 'Metformin Delays Functional Decline' : 'Epigenetic Clock Deceleration');
-              const isLinked = true;
 
               return (
                 <div
