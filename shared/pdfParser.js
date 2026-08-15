@@ -1,4 +1,13 @@
-import pdf from 'pdf-parse';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+let pdfParse = null;
+
+try {
+  pdfParse = require('pdf-parse');
+} catch (e) {
+  // Graceful fallback if module is missing
+}
 
 /**
  * Extracts structured study sections from an uploaded PDF buffer
@@ -7,12 +16,11 @@ import pdf from 'pdf-parse';
  */
 export async function parsePdfBuffer(dataBuffer) {
   try {
-    let parseFn = typeof pdf === 'function' ? pdf : (pdf?.default || pdf);
     let text = '';
 
-    if (typeof parseFn === 'function') {
+    if (typeof pdfParse === 'function') {
       try {
-        const data = await parseFn(dataBuffer);
+        const data = await pdfParse(dataBuffer);
         text = data.text || '';
       } catch {
         text = dataBuffer.toString('utf-8');
