@@ -197,9 +197,20 @@ app.get('/jobs/:jobId/stream', (req, res) => {
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
+
+  // If already finished, return immediately
+  if (job.status === 'COMPLETED' && job.matrix) {
+    res.write(`data: ${JSON.stringify({ type: 'complete', progress: 100, matrix: job.matrix })}\n\n`);
+    return res.end();
+  }
+  if (job.status === 'FAILED') {
+    res.write(`data: ${JSON.stringify({ type: 'error', error: job.error || 'Job failed' })}\n\n`);
+    return res.end();
+  }
 
   // Send initial state
   res.write(`data: ${JSON.stringify({ type: 'init', job })}\n\n`);
@@ -218,6 +229,7 @@ app.get('/jobs/:jobId/stream', (req, res) => {
   };
 
   req.on('close', cleanup);
+  req.on('end', cleanup);
 });
 
 // POST /research-queries/:query/arbitrate — Runs Arbiter over unverified pairs

@@ -161,7 +161,7 @@ export async function discoverAndSynthesize(research_query: string) {
 }
 
 /**
- * Real-time SSE Stream for 3-Phase Swarm Agent Execution
+ * Resilient Real-Time SSE Stream with Instant Direct HTTP Fallback
  */
 export function streamSynthesizeJob(
   research_query: string,
@@ -170,7 +170,39 @@ export function streamSynthesizeJob(
   onError: (error: string) => void
 ): () => void {
   let eventSource: EventSource | null = null;
+  let isDone = false;
   let isAborted = false;
+
+  const runDirectFallback = () => {
+    if (isDone || isAborted) return;
+    onProgress({
+      progress: 45,
+      step: 'Querying PubMed Central & Synthesizing Consensus...',
+      log: `Executing deep analysis for "${research_query}"`,
+    });
+    discoverAndSynthesize(research_query)
+      .then((res) => {
+        if (!isDone && !isAborted) {
+          isDone = true;
+          eventSource?.close();
+          onComplete(res.matrix);
+        }
+      })
+      .catch((err) => {
+        if (!isDone && !isAborted) {
+          isDone = true;
+          eventSource?.close();
+          onError(err.message);
+        }
+      });
+  };
+
+  // Launch fallback timeout if SSE is blocked or buffered by proxy
+  const fallbackTimer = setTimeout(() => {
+    if (!isDone && !isAborted) {
+      runDirectFallback();
+    }
+  }, 4000);
 
   fetch(`${API_BASE}/jobs/synthesize`, {
     method: 'POST',
@@ -185,52 +217,73 @@ export function streamSynthesizeJob(
       return res.json();
     })
     .then((data) => {
-      if (isAborted) return;
+      if (isAborted || isDone) return;
       const streamUrl = `${API_BASE}/jobs/${data.jobId}/stream`;
       eventSource = new EventSource(streamUrl);
 
       eventSource.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
-          if (payload.type === 'progress') {
+
+          if (payload.type === 'init') {
+            if (payload.job?.status === 'COMPLETED' && payload.job?.matrix) {
+              isDone = true;
+              clearTimeout(fallbackTimer);
+              eventSource?.close();
+              onComplete(payload.job.matrix);
+              return;
+            }
+            if (payload.job?.status === 'FAILED') {
+              isDone = true;
+              clearTimeout(fallbackTimer);
+              eventSource?.close();
+              onError(payload.job.error || 'Job failed');
+              return;
+            }
+            if (payload.job?.currentStep) {
+              onProgress({
+                progress: payload.job.progress || 15,
+                step: payload.job.currentStep,
+              });
+            }
+          } else if (payload.type === 'progress') {
             onProgress({
-              progress: payload.progress || 0,
-              step: payload.step || 'Processing...',
+              progress: payload.progress || 20,
+              step: payload.step || 'Analyzing literature...',
               log: payload.log,
             });
           } else if (payload.type === 'complete') {
+            isDone = true;
+            clearTimeout(fallbackTimer);
             eventSource?.close();
             onComplete(payload.matrix);
           } else if (payload.type === 'error') {
+            isDone = true;
+            clearTimeout(fallbackTimer);
             eventSource?.close();
             onError(payload.error || 'Swarm execution failed');
           }
         } catch (err: any) {
-          console.error('[SSE Parse Notice]', err);
+          console.error('[SSE Parse Error]', err);
         }
       };
 
       eventSource.onerror = () => {
         eventSource?.close();
-        if (!isAborted) {
-          // Fallback to direct HTTP endpoint if SSE dropped
-          discoverAndSynthesize(research_query)
-            .then((res) => onComplete(res.matrix))
-            .catch((err) => onError(err.message));
+        if (!isDone && !isAborted) {
+          runDirectFallback();
         }
       };
     })
-    .catch((err) => {
-      if (!isAborted) {
-        // Direct HTTP fallback
-        discoverAndSynthesize(research_query)
-          .then((res) => onComplete(res.matrix))
-          .catch((err2) => onError(err2.message || err.message));
+    .catch(() => {
+      if (!isDone && !isAborted) {
+        runDirectFallback();
       }
     });
 
   return () => {
     isAborted = true;
+    clearTimeout(fallbackTimer);
     eventSource?.close();
   };
 }
