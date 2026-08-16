@@ -277,8 +277,16 @@ export async function generateTitanEmbedding(text) {
  * @returns {number} Cosine similarity (-1.0 to 1.0)
  */
 export function cosineSimilarity(vecA, vecB) {
-  if (!Array.isArray(vecA) || !Array.isArray(vecB) || vecA.length !== vecB.length || vecA.length === 0) {
-    return 1.0;
+  if (!Array.isArray(vecA) || !Array.isArray(vecB)) {
+    throw new TypeError('[cosineSimilarity] Both arguments must be arrays');
+  }
+  if (vecA.length === 0 || vecB.length === 0) {
+    throw new RangeError('[cosineSimilarity] Vectors must be non-empty');
+  }
+  if (vecA.length !== vecB.length) {
+    throw new RangeError(
+      `[cosineSimilarity] Vector length mismatch: ${vecA.length} vs ${vecB.length}`
+    );
   }
   let dotProduct = 0;
   for (let i = 0; i < vecA.length; i++) {

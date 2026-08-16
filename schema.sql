@@ -49,6 +49,16 @@ CREATE TABLE IF NOT EXISTS contradictions (
 );
 
 -- 4. Secondary & Vector Indexes
+
+-- Standard relational indexes
 CREATE INDEX IF NOT EXISTS idx_extractions_query ON study_extractions (research_query);
 CREATE INDEX IF NOT EXISTS idx_contradictions_query ON contradictions (research_query);
-CREATE INDEX IF NOT EXISTS idx_papers_embedding_cosine ON papers (abstract_embedding);
+
+-- True ANN vector index (CockroachDB 25.2+, C-SPANN algorithm).
+-- Requires feature flag to be set once per cluster before this DDL runs:
+--   SET CLUSTER SETTING feature.vector_index.enabled = true;
+-- For non-empty tables, also requires:
+--   SET sql_safe_updates = false;
+-- Backfill temporarily blocks writes; run during a low-traffic window.
+CREATE VECTOR INDEX IF NOT EXISTS idx_papers_embedding_cosine
+    ON papers (abstract_embedding);
