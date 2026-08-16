@@ -4,15 +4,65 @@ import { discoverLiteratureForQuery } from '../shared/literatureDiscovery.js';
 import { handleExtract } from '../lambdas/extractor/handler.js';
 import { handleArbitrate } from '../lambdas/arbiter/handler.js';
 import { handleQueryMatrix } from '../lambdas/query/handler.js';
+import { query } from '../shared/db.js';
 import { logger } from '../shared/logger.js';
+
+function rowToJob(row) {
+  const logs = row.logs;
+  const matrix = row.matrix;
+  return {
+    id: row.id,
+    researchQuery: row.research_query,
+    status: row.status,
+    progress: row.progress,
+    currentStep: row.current_step,
+    logs: typeof logs === 'string' ? JSON.parse(logs) : (logs || []),
+    matrix: typeof matrix === 'string' ? JSON.parse(matrix) : (matrix || null),
+    error: row.error,
+    createdAt: row.created_at,
+  };
+}
 
 class SwarmJobManager extends EventEmitter {
   constructor() {
     super();
+    // In-process cache: avoids a DB round-trip on every progress tick for jobs
+    // started by this server instance. Persistence (below) is what makes jobs
+    // survive a restart; this is purely a hot-path optimization.
     this.jobs = new Map();
+
+    // A job left QUEUED/RUNNING means the process that owned it died mid-run —
+    // there is no worker left to advance it, so it would otherwise show as
+    // "in progress" forever. Mark it FAILED so the frontend reflects reality.
+    query(
+      `UPDATE jobs SET status = 'FAILED', error = 'Job interrupted by server restart', updated_at = now()
+       WHERE status IN ('QUEUED', 'RUNNING')`
+    ).catch((err) => logger.error('Failed to reap orphaned jobs on startup', err));
   }
 
-  createJob(researchQuery) {
+  async _persist(job) {
+    try {
+      await query(
+        `UPSERT INTO jobs (id, research_query, status, progress, current_step, logs, matrix, error, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())`,
+        [
+          job.id,
+          job.researchQuery,
+          job.status,
+          job.progress,
+          job.currentStep,
+          JSON.stringify(job.logs || []),
+          job.matrix ? JSON.stringify(job.matrix) : null,
+          job.error,
+          job.createdAt,
+        ]
+      );
+    } catch (err) {
+      logger.error(`Failed to persist job ${job.id}`, err, { jobId: job.id });
+    }
+  }
+
+  async createJob(researchQuery) {
     const jobId = randomUUID();
     const job = {
       id: jobId,
@@ -26,11 +76,20 @@ class SwarmJobManager extends EventEmitter {
       createdAt: new Date().toISOString(),
     };
     this.jobs.set(jobId, job);
+    await this._persist(job);
     return job;
   }
 
-  getJob(jobId) {
-    return this.jobs.get(jobId);
+  async getJob(jobId) {
+    const cached = this.jobs.get(jobId);
+    if (cached) return cached;
+
+    const { rows } = await query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+    if (rows.length === 0) return null;
+
+    const job = rowToJob(rows[0]);
+    this.jobs.set(jobId, job); // warm the cache so subsequent reads/writes skip the DB
+    return job;
   }
 
   updateProgress(jobId, percent, stepMessage, logDetail = null) {
@@ -45,6 +104,7 @@ class SwarmJobManager extends EventEmitter {
         message: logDetail,
       });
     }
+    this._persist(job).catch(() => {});
 
     this.emit(`job:${jobId}:update`, {
       type: 'progress',
@@ -59,6 +119,7 @@ class SwarmJobManager extends EventEmitter {
     if (!job) return;
 
     job.status = 'RUNNING';
+    await this._persist(job);
     logger.agent('Orchestrator', `Starting Swarm synthesis job ${jobId.slice(0, 8)}`, {
       jobId,
       researchQuery: job.researchQuery,
@@ -152,6 +213,7 @@ class SwarmJobManager extends EventEmitter {
       job.progress = 100;
       job.currentStep = `Consensus Synthesis Complete • Confidence Grade [${matrixBody.aggregate?.confidence_tier || 'MODERATE'}]`;
       job.matrix = matrixBody;
+      await this._persist(job);
 
       logger.agent('Orchestrator', `Job ${jobId.slice(0, 8)} successfully finished [${matrixBody.aggregate?.confidence_tier}]`, {
         jobId,
@@ -168,6 +230,7 @@ class SwarmJobManager extends EventEmitter {
     } catch (err) {
       job.status = 'FAILED';
       job.error = err.message;
+      await this._persist(job);
       logger.error(`Job ${jobId.slice(0, 8)} failed`, err, { jobId });
       this.emit(`job:${jobId}:update`, {
         type: 'error',

@@ -116,6 +116,7 @@ Evidence Snippet: "${negStudy.evidence_snippet || 'N/A'}"`;
           systemPrompt: ARBITER_SYSTEM_PROMPT,
           userPrompt,
           jsonOutput: true,
+          agent: 'arbiter',
         });
 
         const arbVerdict = llmResult.content || {};

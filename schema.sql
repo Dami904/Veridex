@@ -48,7 +48,22 @@ CREATE TABLE IF NOT EXISTS contradictions (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 4. Secondary & Vector Indexes
+-- 4. Swarm Synthesis Jobs (persisted so in-flight/completed jobs survive a server restart)
+CREATE TABLE IF NOT EXISTS jobs (
+    id UUID PRIMARY KEY,
+    research_query STRING NOT NULL,
+    status STRING NOT NULL DEFAULT 'QUEUED' CHECK (status IN ('QUEUED','RUNNING','COMPLETED','FAILED')),
+    progress INT DEFAULT 0,
+    current_step STRING,
+    logs JSONB DEFAULT '[]',
+    matrix JSONB,
+    error STRING,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
+
+-- 5. Secondary & Vector Indexes
 
 -- Standard relational indexes
 CREATE INDEX IF NOT EXISTS idx_extractions_query ON study_extractions (research_query);

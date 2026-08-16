@@ -312,6 +312,7 @@ export async function discoverLiteratureForQuery(researchQuery) {
       systemPrompt: LIBRARIAN_SYSTEM_PROMPT,
       userPrompt: `User Research Question: "${researchQuery}"`,
       jsonOutput: true,
+      agent: 'librarian',
     });
 
     const parsedPlan = librarianResult.content || {};

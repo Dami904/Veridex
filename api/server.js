@@ -61,7 +61,34 @@ const requireAdminKeyIfConfigured = (req, res, next) => {
 };
 
 app.use(globalLimiter);
-app.use(cors({ origin: '*' }));
+
+// CORS: restrict to the deployed frontend + local dev, not the entire internet.
+// ALLOWED_ORIGINS (comma-separated) overrides the defaults for staging/custom domains.
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://veridex-frontend.vercel.app',
+  'http://localhost:3000',
+];
+const configuredOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+const allowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : DEFAULT_ALLOWED_ORIGINS;
+// Vercel preview deployments get per-branch/PR subdomains of the same project.
+const VERCEL_PREVIEW_PATTERN = /^https:\/\/veridex-frontend-[a-z0-9-]+\.vercel\.app$/;
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // No Origin header = non-browser caller (curl, server-to-server, health checks) — not a CORS concern.
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || VERCEL_PREVIEW_PATTERN.test(origin)) {
+      return callback(null, true);
+    }
+    // Deny without throwing: cors() omits the Access-Control-Allow-Origin header and the
+    // browser blocks the response client-side. Throwing here would fall through to Express's
+    // default error handler and leak a stack trace (incl. local file paths) in the response body.
+    return callback(null, false);
+  },
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.raw({ type: 'application/pdf', limit: '25mb' }));
 
@@ -187,7 +214,7 @@ app.post('/jobs/synthesize', writeLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Missing research_query in body' });
     }
 
-    const job = jobManager.createJob(research_query.trim());
+    const job = await jobManager.createJob(research_query.trim());
     // Launch execution in background
     jobManager.runJob(job.id).catch((err) => {
       console.error(`[Job ${job.id} Execution Failed]`, err);
@@ -206,9 +233,9 @@ app.post('/jobs/synthesize', writeLimiter, async (req, res) => {
 });
 
 // GET /jobs/:jobId/stream — Server-Sent Events (SSE) Real-Time Progress Stream
-app.get('/jobs/:jobId/stream', (req, res) => {
+app.get('/jobs/:jobId/stream', async (req, res) => {
   const { jobId } = req.params;
-  const job = jobManager.getJob(jobId);
+  const job = await jobManager.getJob(jobId);
 
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getDbPool } from '../shared/db.js';
+import { getDbPool, parseSchemaStatements } from '../shared/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,11 +17,7 @@ export async function initializeDatabase() {
 
   console.log('[DB Init] Applying schema to database...');
   
-  // Split statements by semicolon and execute cleanly
-  const statements = schemaSql
-    .split(';')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith('--'));
+  const statements = parseSchemaStatements(schemaSql);
 
   for (const stmt of statements) {
     try {

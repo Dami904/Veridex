@@ -23,11 +23,13 @@ export function validateAndSanitizeExtraction(raw) {
     };
   }
 
-  // 1. sample_size: integer >= 0 or null
+  // 1. sample_size: integer in [0, 50_000_000] or null. The upper bound rejects LLM
+  // hallucination artifacts (e.g. a stray extra digit) rather than silently clamping them
+  // to a boundary value that would misrepresent the actual study.
   let sample_size = null;
   if (raw.sample_size !== null && raw.sample_size !== undefined) {
     const parsedN = parseInt(raw.sample_size, 10);
-    if (!isNaN(parsedN) && parsedN >= 0) {
+    if (!isNaN(parsedN) && parsedN >= 0 && parsedN <= 50_000_000) {
       sample_size = parsedN;
     }
   }
@@ -175,6 +177,7 @@ export async function handleExtract(event) {
       systemPrompt: EXTRACTOR_SYSTEM_PROMPT,
       userPrompt,
       jsonOutput: true,
+      agent: 'extractor',
     });
 
     // 4. Strictly validate and sanitize extraction schema before DB insert

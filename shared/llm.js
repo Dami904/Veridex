@@ -6,6 +6,24 @@ dotenv.config();
 
 let bedrockClient = null;
 
+// Model tiering: the Extractor (reads exact numbers out of prose) and Arbiter (compares two
+// records to judge whether a conflict is explainable) need real reasoning precision. The
+// Synthesizer only narrates numbers Veridex already computed deterministically, and the
+// Librarian only normalizes a query string — both tolerate a cheaper/faster model.
+// Each tier can be overridden independently; unset ones fall back to GEMINI_MODEL, so the
+// default behavior (one global model) is unchanged until an override is actually set.
+const AGENT_MODEL_ENV_VARS = {
+  extractor: 'EXTRACTOR_GEMINI_MODEL',
+  arbiter: 'ARBITER_GEMINI_MODEL',
+  synthesizer: 'SYNTHESIZER_GEMINI_MODEL',
+  librarian: 'LIBRARIAN_GEMINI_MODEL',
+};
+
+function resolveGeminiModel(agent) {
+  const envVar = AGENT_MODEL_ENV_VARS[agent];
+  return (envVar && process.env[envVar]) || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+}
+
 function getBedrockClient() {
   if (!bedrockClient) {
     const region = process.env.AWS_REGION || 'us-east-1';
@@ -193,6 +211,7 @@ export async function executeLLMCall({
   systemPrompt,
   userPrompt,
   jsonOutput = true,
+  agent = null,
 }) {
   const startTime = Date.now();
   const inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
@@ -222,7 +241,7 @@ export async function executeLLMCall({
 
   // 1. Google Gemini Provider (with retryWithBackoff)
   if (provider === 'gemini' && process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('your-gemini')) {
-    const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+    const geminiModel = resolveGeminiModel(agent);
     try {
       const data = await retryWithBackoff(async () => {
         const response = await fetch(

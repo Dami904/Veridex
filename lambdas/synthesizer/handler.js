@@ -139,6 +139,7 @@ export async function handleSynthesize(extractions = [], contradictions = [], re
     systemPrompt: SYNTHESIZER_SYSTEM_PROMPT,
     userPrompt,
     jsonOutput: false,
+    agent: 'synthesizer',
   });
 
   return {

@@ -18,6 +18,7 @@ class InMemoryDatabase {
     this.papers = new Map();
     this.study_extractions = new Map();
     this.contradictions = new Map();
+    this.jobs = new Map();
   }
 
   async query(text, params = []) {
@@ -241,6 +242,36 @@ class InMemoryDatabase {
       return { rows: results };
     }
 
+    // 12a. UPSERT jobs (whole-row replace, keyed by id)
+    if (upper.startsWith('UPSERT INTO JOBS')) {
+      const [id, research_query, status, progress, current_step, logs, matrix, error, created_at] = params;
+      const job = {
+        id,
+        research_query,
+        status,
+        progress,
+        current_step,
+        logs: logs ?? '[]',
+        matrix: matrix ?? null,
+        error: error ?? null,
+        created_at: created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      this.jobs.set(id, job);
+      return { rows: [job] };
+    }
+
+    // 12b. SELECT jobs WHERE id = $1
+    if (upper.startsWith('SELECT') && upper.includes('FROM JOBS')) {
+      const job = this.jobs.get(params[0]);
+      return { rows: job ? [job] : [] };
+    }
+
+    // 12c. Reap orphaned jobs on startup (no-op: an in-memory store never outlives its own process)
+    if (upper.startsWith('UPDATE JOBS')) {
+      return { rows: [] };
+    }
+
     // 12. General SELECT papers (omitting raw float vector to avoid payload bloat)
     if (upper.startsWith('SELECT') && upper.includes('FROM PAPERS')) {
       const cleanPapers = Array.from(this.papers.values()).map(({ abstract_embedding: _, ...p }) => p);
@@ -261,16 +292,32 @@ let pool = null;
 let memoryDb = null;
 let schemaInitialized = false;
 
+/**
+ * Parse schema.sql into executable statements. Strips comment LINES before
+ * splitting on ';' — splitting first and then checking whether the whole
+ * chunk starts with '--' silently drops any statement preceded by a comment
+ * (the comment + statement share one chunk, and the chunk's trimmed text
+ * starts with '--' even though real SQL follows on a later line).
+ */
+export function parseSchemaStatements(schemaSql) {
+  const withoutComments = schemaSql
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n');
+
+  return withoutComments
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
 async function autoInitSchema(clientPool) {
   if (schemaInitialized) return;
   try {
     const schemaPath = path.resolve(__dirname, '../schema.sql');
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
-      const statements = schemaSql
-        .split(';')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !s.startsWith('--'));
+      const statements = parseSchemaStatements(schemaSql);
 
       for (const stmt of statements) {
         try {
