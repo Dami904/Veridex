@@ -43,9 +43,12 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
     extraction?: StudyExtraction;
   } | null>(null);
   const [filterDirection, setFilterDirection] = useState<string>('ALL');
+  const [filterBias, setFilterBias] = useState<string>('ALL');
+  const [filterSignificant, setFilterSignificant] = useState<boolean>(false);
   const [searchFilter, setSearchFilter] = useState<string>('');
-  const [sortField, setSortField] = useState<SortField>('p_value');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [sorts, setSorts] = useState<{ field: SortField; order: SortOrder }[]>([
+    { field: 'p_value', order: 'asc' },
+  ]);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
 
   const paperMap = useMemo(() => {
@@ -54,12 +57,28 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
     return map;
   }, [papers]);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+  const handleSort = (field: SortField, e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      setSorts((prev) => {
+        const existingIdx = prev.findIndex((s) => s.field === field);
+        if (existingIdx >= 0) {
+          const newSorts = [...prev];
+          newSorts[existingIdx] = {
+            ...newSorts[existingIdx],
+            order: newSorts[existingIdx].order === 'asc' ? 'desc' : 'asc',
+          };
+          return newSorts;
+        } else {
+          return [...prev, { field, order: 'asc' }];
+        }
+      });
     } else {
-      setSortField(field);
-      setSortOrder('asc');
+      setSorts((prev) => {
+        if (prev.length === 1 && prev[0].field === field) {
+          return [{ field, order: prev[0].order === 'asc' ? 'desc' : 'asc' }];
+        }
+        return [{ field, order: 'asc' }];
+      });
     }
   };
 
@@ -67,6 +86,8 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
     return extractions
       .filter((e) => {
         if (filterDirection !== 'ALL' && e.effect_direction !== filterDirection) return false;
+        if (filterBias !== 'ALL' && e.risk_of_bias !== filterBias) return false;
+        if (filterSignificant && (e.p_value === null || e.p_value > 0.05)) return false;
         if (!searchFilter.trim()) return true;
         const p = paperMap.get(e.paper_id);
         const searchTarget = `${p?.title || ''} ${p?.journal || ''} ${e.model_system || ''} ${
@@ -78,52 +99,57 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
         const paperA = paperMap.get(a.paper_id);
         const paperB = paperMap.get(b.paper_id);
 
-        let valA: any;
-        let valB: any;
+        for (const sort of sorts) {
+          let valA: any;
+          let valB: any;
 
-        switch (sortField) {
-          case 'title':
-            valA = paperA?.title || a.paper_title || '';
-            valB = paperB?.title || b.paper_title || '';
-            break;
-          case 'provenance':
-            valA = paperA?.provenance || '';
-            valB = paperB?.provenance || '';
-            break;
-          case 'model_system':
-            valA = a.model_system || '';
-            valB = b.model_system || '';
-            break;
-          case 'sample_size':
-            valA = a.sample_size ?? -1;
-            valB = b.sample_size ?? -1;
-            break;
-          case 'effect_direction':
-            valA = a.effect_direction || '';
-            valB = b.effect_direction || '';
-            break;
-          case 'effect_size':
-            valA = a.effect_size ?? -999;
-            valB = b.effect_size ?? -999;
-            break;
-          case 'p_value':
-            valA = a.p_value ?? 999;
-            valB = b.p_value ?? 999;
-            break;
-          case 'risk_of_bias':
-            valA = a.risk_of_bias === 'LOW' ? 1 : a.risk_of_bias === 'MODERATE' ? 2 : 3;
-            valB = b.risk_of_bias === 'LOW' ? 1 : b.risk_of_bias === 'MODERATE' ? 2 : 3;
-            break;
-          default:
-            return 0;
-        }
+          switch (sort.field) {
+            case 'title':
+              valA = paperA?.title || a.paper_title || '';
+              valB = paperB?.title || b.paper_title || '';
+              break;
+            case 'provenance':
+              valA = paperA?.provenance || '';
+              valB = paperB?.provenance || '';
+              break;
+            case 'model_system':
+              valA = a.model_system || '';
+              valB = b.model_system || '';
+              break;
+            case 'sample_size':
+              valA = a.sample_size ?? -1;
+              valB = b.sample_size ?? -1;
+              break;
+            case 'effect_direction':
+              valA = a.effect_direction || '';
+              valB = b.effect_direction || '';
+              break;
+            case 'effect_size':
+              valA = a.effect_size ?? -999;
+              valB = b.effect_size ?? -999;
+              break;
+            case 'p_value':
+              valA = a.p_value ?? 999;
+              valB = b.p_value ?? 999;
+              break;
+            case 'risk_of_bias':
+              valA = a.risk_of_bias === 'LOW' ? 1 : a.risk_of_bias === 'MODERATE' ? 2 : 3;
+              valB = b.risk_of_bias === 'LOW' ? 1 : b.risk_of_bias === 'MODERATE' ? 2 : 3;
+              break;
+            default:
+              continue;
+          }
 
-        if (typeof valA === 'string') {
-          return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          if (valA === valB) continue;
+
+          if (typeof valA === 'string' && typeof valB === 'string') {
+            return sort.order === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          }
+          return sort.order === 'asc' ? valA - valB : valB - valA;
         }
-        return sortOrder === 'asc' ? valA - valB : valB - valA;
+        return 0;
       });
-  }, [extractions, filterDirection, searchFilter, sortField, sortOrder, paperMap]);
+  }, [extractions, filterDirection, filterBias, filterSignificant, searchFilter, sorts, paperMap]);
 
   const getDirectionBadge = (dir: string | null) => {
     switch (dir) {
@@ -221,13 +247,29 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
   };
 
   const renderSortIndicator = (field: SortField) => {
-    if (sortField !== field) {
+    const sortIdx = sorts.findIndex((s) => s.field === field);
+    if (sortIdx === -1) {
       return <ArrowUpDown className="w-3 h-3 text-slate-600 opacity-60 inline ml-1" />;
     }
-    return sortOrder === 'asc' ? (
-      <ArrowUp className="w-3 h-3 text-emerald-400 inline ml-1" />
+    const sort = sorts[sortIdx];
+    const badgeNumbers = ['①', '②', '③', '④', '⑤'];
+    const badge =
+      sorts.length > 1 && sortIdx < badgeNumbers.length ? (
+        <span className="ml-0.5 text-[9px] text-emerald-400 font-bold">
+          {badgeNumbers[sortIdx]}
+        </span>
+      ) : null;
+
+    return sort.order === 'asc' ? (
+      <span className="inline-flex items-center">
+        <ArrowUp className="w-3 h-3 text-emerald-400 inline ml-1" />
+        {badge}
+      </span>
     ) : (
-      <ArrowDown className="w-3 h-3 text-emerald-400 inline ml-1" />
+      <span className="inline-flex items-center">
+        <ArrowDown className="w-3 h-3 text-emerald-400 inline ml-1" />
+        {badge}
+      </span>
     );
   };
 
@@ -257,40 +299,77 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
         </div>
 
         {/* Filter Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* In-table Search */}
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              placeholder="Filter studies..."
-              className="pl-8 pr-3 py-1.5 bg-surface-base border border-white/10 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-40 sm:w-48"
-            />
+        <div className="flex flex-col items-end gap-2.5">
+          {/* Row 1: Search & Direction */}
+          <div className="flex flex-wrap items-center justify-end gap-2.5">
+            {/* In-table Search */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Filter studies..."
+                className="pl-8 pr-3 py-1.5 bg-surface-base border border-white/10 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-40 sm:w-48"
+              />
+            </div>
+
+            {/* Direction Filter Segmented Buttons */}
+            <div className="flex items-center bg-surface-base p-1 rounded-lg border border-white/10 text-xs font-mono">
+              {['ALL', 'POSITIVE', 'NEGATIVE', 'NEUTRAL'].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setFilterDirection(filter)}
+                  className={`px-2.5 py-1 rounded transition-colors font-medium text-[11px] ${
+                    filterDirection === filter
+                      ? 'bg-surface-elevated text-slate-100 shadow-sm border border-white/10'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {filter === 'ALL'
+                    ? 'All'
+                    : filter === 'POSITIVE'
+                    ? 'Pos (+)'
+                    : filter === 'NEGATIVE'
+                    ? 'Neg (-)'
+                    : 'Neutral'}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Direction Filter Segmented Buttons */}
-          <div className="flex items-center bg-surface-base p-1 rounded-lg border border-white/10 text-xs font-mono">
-            {['ALL', 'POSITIVE', 'NEGATIVE', 'NEUTRAL'].map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setFilterDirection(filter)}
-                className={`px-2.5 py-1 rounded transition-colors font-medium text-[11px] ${
-                  filterDirection === filter
-                    ? 'bg-surface-elevated text-slate-100 shadow-sm border border-white/10'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {filter === 'ALL'
-                  ? 'All'
-                  : filter === 'POSITIVE'
-                  ? 'Pos (+)'
-                  : filter === 'NEGATIVE'
-                  ? 'Neg (-)'
-                  : 'Neutral'}
-              </button>
-            ))}
+          {/* Row 2: Bias & Significance */}
+          <div className="flex flex-wrap items-center justify-end gap-2.5">
+            {/* Bias Filter Segmented Buttons */}
+            <div className="flex items-center bg-surface-base p-1 rounded-lg border border-white/10 text-xs font-mono">
+              <span className="px-2 text-slate-500 text-[10px] uppercase font-semibold">Bias:</span>
+              {['ALL', 'LOW', 'MODERATE', 'HIGH'].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setFilterBias(filter)}
+                  className={`px-2.5 py-1 rounded transition-colors font-medium text-[11px] ${
+                    filterBias === filter
+                      ? 'bg-surface-elevated text-slate-100 shadow-sm border border-white/10'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {filter === 'ALL' ? 'All' : filter === 'LOW' ? 'Low' : filter === 'MODERATE' ? 'Mod' : 'High'}
+                </button>
+              ))}
+            </div>
+
+            {/* Statistical Significance Toggle */}
+            <button
+              onClick={() => setFilterSignificant(!filterSignificant)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-mono font-medium transition-colors ${
+                filterSignificant
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-surface-base text-slate-400 border-white/10 hover:text-slate-200'
+              }`}
+            >
+              {filterSignificant ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border border-slate-500" />}
+              p ≤ 0.05 only
+            </button>
           </div>
         </div>
       </div>
@@ -301,49 +380,49 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
           <thead className="sticky top-0 z-20 bg-surface-elevated text-slate-300 uppercase tracking-wider font-semibold font-mono text-[10px] hairline-b">
             <tr>
               <th
-                onClick={() => handleSort('title')}
+                onClick={(e) => handleSort('title', e)}
                 className="py-3 px-4 cursor-pointer hover:text-white select-none whitespace-nowrap"
               >
                 Study / Paper Title {renderSortIndicator('title')}
               </th>
               <th
-                onClick={() => handleSort('provenance')}
+                onClick={(e) => handleSort('provenance', e)}
                 className="py-3 px-3 cursor-pointer hover:text-white select-none whitespace-nowrap"
               >
                 Provenance {renderSortIndicator('provenance')}
               </th>
               <th
-                onClick={() => handleSort('model_system')}
+                onClick={(e) => handleSort('model_system', e)}
                 className="py-3 px-3 cursor-pointer hover:text-white select-none whitespace-nowrap"
               >
                 Model System {renderSortIndicator('model_system')}
               </th>
               <th
-                onClick={() => handleSort('sample_size')}
+                onClick={(e) => handleSort('sample_size', e)}
                 className="py-3 px-3 text-right cursor-pointer hover:text-white select-none whitespace-nowrap"
               >
                 Sample (N) {renderSortIndicator('sample_size')}
               </th>
               <th
-                onClick={() => handleSort('effect_direction')}
+                onClick={(e) => handleSort('effect_direction', e)}
                 className="py-3 px-3 text-center cursor-pointer hover:text-white select-none whitespace-nowrap"
               >
                 Direction {renderSortIndicator('effect_direction')}
               </th>
               <th
-                onClick={() => handleSort('effect_size')}
+                onClick={(e) => handleSort('effect_size', e)}
                 className="py-3 px-3 text-right cursor-pointer hover:text-white select-none whitespace-nowrap"
               >
                 Effect (Δ%) {renderSortIndicator('effect_size')}
               </th>
               <th
-                onClick={() => handleSort('p_value')}
+                onClick={(e) => handleSort('p_value', e)}
                 className="py-3 px-3 text-right cursor-pointer hover:text-white select-none whitespace-nowrap"
               >
                 p-value {renderSortIndicator('p_value')}
               </th>
               <th
-                onClick={() => handleSort('risk_of_bias')}
+                onClick={(e) => handleSort('risk_of_bias', e)}
                 className="py-3 px-3 text-center cursor-pointer hover:text-white select-none whitespace-nowrap"
               >
                 Risk of Bias {renderSortIndicator('risk_of_bias')}
@@ -472,10 +551,26 @@ export const EvidenceMatrix: React.FC<EvidenceMatrixProps> = ({ papers, extracti
         <span>Deterministic Extractor Output</span>
       </div>
 
-      {/* Audit Detail Modal */}
+      {/* Drawer Keyframes */}
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+      `}</style>
+
+      {/* Audit Detail Drawer */}
       {selectedItem && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="surface-elevated rounded-xl max-w-2xl w-full p-6 shadow-2xl relative border border-white/10 max-h-[90vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in"
+          onClick={() => setSelectedItem(null)}
+        >
+          {/* Drawer Panel */}
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="w-full sm:w-[420px] h-full bg-surface-elevated border-l border-white/10 shadow-2xl flex flex-col p-6 overflow-y-auto"
+            style={{ animation: 'slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
+          >
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 pb-4 hairline-b">
               <div>

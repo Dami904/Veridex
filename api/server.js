@@ -46,6 +46,20 @@ const writeLimiter = rateLimit({
   message: { error: 'Write rate limit exceeded. Please throttle agent synthesis requests.' },
 });
 
+// Optional Admin API Key enforcement middleware (active when ADMIN_API_KEY is configured in env)
+const requireAdminKeyIfConfigured = (req, res, next) => {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (adminKey && adminKey.trim() !== '') {
+    const providedKey =
+      req.headers['x-veridex-admin-key'] ||
+      req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+    if (providedKey !== adminKey) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid or missing X-Veridex-Admin-Key' });
+    }
+  }
+  next();
+};
+
 app.use(globalLimiter);
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
@@ -63,7 +77,7 @@ app.get('/health', async (req, res) => {
 });
 
 // POST /papers — Ingestion & Extraction (Titan V2 1024-dim Vector + Extractor Agent)
-app.post('/papers', writeLimiter, async (req, res) => {
+app.post('/papers', writeLimiter, requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const { abstract_text } = req.body || {};
     if (abstract_text && typeof abstract_text === 'string' && abstract_text.length > 25000) {
@@ -78,7 +92,7 @@ app.post('/papers', writeLimiter, async (req, res) => {
 });
 
 // POST /papers/upload-pdf — Real PDF Upload Parser + S3 Storage + Live Extractor
-app.post('/papers/upload-pdf', writeLimiter, async (req, res) => {
+app.post('/papers/upload-pdf', writeLimiter, requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const researchQuery = req.query.research_query || req.headers['x-research-query'];
     if (!researchQuery) {
@@ -406,15 +420,8 @@ app.get('/papers/:id', async (req, res) => {
 });
 
 // POST /seed — Protected database seeder
-app.post('/seed', writeLimiter, async (req, res) => {
+app.post('/seed', writeLimiter, requireAdminKeyIfConfigured, async (req, res) => {
   try {
-    const adminKey = process.env.ADMIN_API_KEY;
-    const providedKey = req.headers['x-veridex-admin-key'] || req.headers['authorization']?.replace('Bearer ', '');
-
-    if (adminKey && adminKey !== providedKey && process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ error: 'Unauthorized: Invalid or missing X-Veridex-Admin-Key' });
-    }
-
     const seedPath = path.resolve(__dirname, '../seed_data/demo_dataset.json');
     if (!fs.existsSync(seedPath)) {
       return res.status(404).json({ error: 'Seed dataset file not found' });

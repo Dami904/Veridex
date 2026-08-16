@@ -51,3 +51,4 @@ CREATE TABLE IF NOT EXISTS contradictions (
 -- 4. Secondary & Vector Indexes
 CREATE INDEX IF NOT EXISTS idx_extractions_query ON study_extractions (research_query);
 CREATE INDEX IF NOT EXISTS idx_contradictions_query ON contradictions (research_query);
+CREATE INDEX IF NOT EXISTS idx_papers_embedding_cosine ON papers (abstract_embedding);

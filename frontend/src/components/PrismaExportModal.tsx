@@ -9,6 +9,7 @@ import {
   X,
   Bookmark,
   Share2,
+  Database
 } from 'lucide-react';
 
 interface PrismaExportModalProps {
@@ -23,6 +24,7 @@ export const PrismaExportModal: React.FC<PrismaExportModalProps> = ({
   researchQuery,
 }) => {
   const [reportMarkdown, setReportMarkdown] = useState<string>('');
+  const [matrixData, setMatrixData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -39,6 +41,17 @@ export const PrismaExportModal: React.FC<PrismaExportModalProps> = ({
     try {
       const data = await fetchPrismaReport(researchQuery);
       setReportMarkdown(data.markdown_report || '');
+      if (data.matrix_data) {
+        setMatrixData({
+          research_query: data.matrix_data.research_query,
+          generated_at: new Date().toISOString(),
+          aggregate: data.matrix_data.aggregate,
+          papers: data.matrix_data.papers,
+          extractions: data.matrix_data.extractions,
+          contradictions: data.matrix_data.contradictions,
+          narrative: data.matrix_data.narrative
+        });
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to generate PRISMA 2020 report.');
     } finally {
@@ -58,6 +71,18 @@ export const PrismaExportModal: React.FC<PrismaExportModalProps> = ({
     const link = document.createElement('a');
     link.href = url;
     link.download = `Veridex_PRISMA_Review_${Date.now()}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleJsonDownload = () => {
+    if (!matrixData) return;
+    const blob = new Blob([JSON.stringify(matrixData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Veridex_Matrix_${Date.now()}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -126,6 +151,15 @@ export const PrismaExportModal: React.FC<PrismaExportModalProps> = ({
               <Share2 className="w-3.5 h-3.5 text-sky-400" />
               <span>EndNote (.ris)</span>
             </button>
+            <button
+              onClick={handleJsonDownload}
+              disabled={isLoading || !matrixData}
+              className="px-2.5 py-1.5 rounded-lg surface-card hover:bg-surface-card/80 border border-white/10 text-slate-200 flex items-center gap-1.5 transition-all text-xs disabled:opacity-50"
+              title="Download structured JSON"
+            >
+              <Database className="w-3.5 h-3.5 text-emerald-400" />
+              <span>JSON</span>
+            </button>
           </div>
 
           {/* Markdown Copy & Download */}
@@ -152,3 +186,4 @@ export const PrismaExportModal: React.FC<PrismaExportModalProps> = ({
     </div>
   );
 };
+

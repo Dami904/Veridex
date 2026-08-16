@@ -9,7 +9,7 @@
     "dev": "node api/server.js",
     "dev:frontend": "pnpm --filter veridex-frontend dev",
     "build": "pnpm --filter veridex-frontend build",
-    "test": "vitest run",
+    "test": "vitest run --config vitest.config.js && pnpm --filter veridex-frontend test",
     "test:watch": "vitest",
     "dry-run": "node scripts/dry-run.js",
     "seed": "node scripts/seed.js",

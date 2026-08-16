@@ -12,6 +12,10 @@ interface CostMonitorProps {
 export const CostMonitor: React.FC<CostMonitorProps> = ({ usage }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  if (!usage) {
+    return <div className="text-slate-500 text-xs p-4 text-center">No telemetry</div>;
+  }
+
   const tokens = usage?.totalTokens || 10378;
   const latency = usage?.latencyMs ? `${usage.latencyMs}ms` : '420ms';
   const cost = usage?.estimatedCostUsd !== undefined ? usage.estimatedCostUsd.toFixed(5) : '0.00012';

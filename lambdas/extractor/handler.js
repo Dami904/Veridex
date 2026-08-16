@@ -5,6 +5,89 @@ import { executeLLMCall } from '../../shared/llm.js';
 import { randomUUID } from 'crypto';
 
 /**
+ * Validates and strictly sanitizes raw LLM extraction JSON before DB insertion
+ */
+export function validateAndSanitizeExtraction(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      sample_size: null,
+      model_system: null,
+      intervention: null,
+      control: null,
+      primary_metric: null,
+      effect_direction: null,
+      effect_size: null,
+      p_value: null,
+      risk_of_bias: null,
+      evidence_snippet: null,
+    };
+  }
+
+  // 1. sample_size: integer >= 0 or null
+  let sample_size = null;
+  if (raw.sample_size !== null && raw.sample_size !== undefined) {
+    const parsedN = parseInt(raw.sample_size, 10);
+    if (!isNaN(parsedN) && parsedN >= 0) {
+      sample_size = parsedN;
+    }
+  }
+
+  // 2. effect_direction: strictly one of POSITIVE, NEGATIVE, NEUTRAL, MIXED, or null
+  let effect_direction = null;
+  if (typeof raw.effect_direction === 'string') {
+    const upperDir = raw.effect_direction.toUpperCase().trim();
+    if (['POSITIVE', 'NEGATIVE', 'NEUTRAL', 'MIXED'].includes(upperDir)) {
+      effect_direction = upperDir;
+    }
+  }
+
+  // 3. risk_of_bias: strictly one of LOW, MODERATE, HIGH, or null
+  let risk_of_bias = null;
+  if (typeof raw.risk_of_bias === 'string') {
+    const upperBias = raw.risk_of_bias.toUpperCase().trim();
+    if (['LOW', 'MODERATE', 'HIGH'].includes(upperBias)) {
+      risk_of_bias = upperBias;
+    }
+  }
+
+  // 4. p_value: float between 0 and 1 or null
+  let p_value = null;
+  if (raw.p_value !== null && raw.p_value !== undefined) {
+    const parsedP = parseFloat(raw.p_value);
+    if (!isNaN(parsedP) && parsedP >= 0 && parsedP <= 1) {
+      p_value = Number(parsedP.toFixed(6));
+    }
+  }
+
+  // 5. effect_size: float or null
+  let effect_size = null;
+  if (raw.effect_size !== null && raw.effect_size !== undefined) {
+    const parsedEff = parseFloat(raw.effect_size);
+    if (!isNaN(parsedEff)) {
+      effect_size = Number(parsedEff.toFixed(4));
+    }
+  }
+
+  const sanitizeStr = (v, maxLen = 300) => {
+    if (typeof v !== 'string' || v.trim().length === 0) return null;
+    return v.trim().slice(0, maxLen);
+  };
+
+  return {
+    sample_size,
+    model_system: sanitizeStr(raw.model_system, 120),
+    intervention: sanitizeStr(raw.intervention, 150),
+    control: sanitizeStr(raw.control, 150),
+    primary_metric: sanitizeStr(raw.primary_metric, 150),
+    effect_direction,
+    effect_size,
+    p_value,
+    risk_of_bias,
+    evidence_snippet: sanitizeStr(raw.evidence_snippet, 500),
+  };
+}
+
+/**
  * Extractor Lambda Handler
  * Ingests a single paper, generates Titan V2 embedding, extracts structured claim data,
  * and records both into CockroachDB with idempotent conflict resolution.
@@ -94,15 +177,17 @@ export async function handleExtract(event) {
       jsonOutput: true,
     });
 
-    const extraction = llmResult.content || {};
+    // 4. Strictly validate and sanitize extraction schema before DB insert
+    const rawExtraction = llmResult.content || {};
+    const extraction = validateAndSanitizeExtraction(rawExtraction);
 
-    // 4. Clean prior extractions for this (paper_id, research_query) to maintain idempotency
+    // 5. Clean prior extractions for this (paper_id, research_query) to maintain idempotency
     await query(`DELETE FROM study_extractions WHERE paper_id = $1 AND research_query = $2;`, [
       savedPaper.id,
       research_query,
     ]);
 
-    // 5. Insert structured study extraction
+    // 6. Insert structured study extraction
     const extractionId = randomUUID();
     const extractionInsertQuery = `
       INSERT INTO study_extractions (
@@ -118,16 +203,16 @@ export async function handleExtract(event) {
       extractionId,
       savedPaper.id,
       research_query,
-      extraction.sample_size !== undefined ? extraction.sample_size : null,
-      extraction.model_system || null,
-      extraction.intervention || null,
-      extraction.control || null,
-      extraction.primary_metric || null,
-      extraction.effect_direction || null,
-      extraction.effect_size !== undefined ? extraction.effect_size : null,
-      extraction.p_value !== undefined ? extraction.p_value : null,
-      extraction.risk_of_bias || null,
-      extraction.evidence_snippet || null,
+      extraction.sample_size,
+      extraction.model_system,
+      extraction.intervention,
+      extraction.control,
+      extraction.primary_metric,
+      extraction.effect_direction,
+      extraction.effect_size,
+      extraction.p_value,
+      extraction.risk_of_bias,
+      extraction.evidence_snippet,
       'extractor-v1',
     ]);
 

@@ -2,8 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { discoverLiteratureForQuery } from '../shared/literatureDiscovery.js';
 import { generatePrismaMarkdownReport } from '../shared/prismaExporter.js';
 import { generateBibtexExport, generateRisExport } from '../shared/citationExporter.js';
-import { generateTitanEmbedding, cosineSimilarity } from '../shared/titanEmbed.js';
+import { generateFallbackEmbedding, cosineSimilarity } from '../shared/titanEmbed.js';
 import { parsePdfBuffer } from '../shared/pdfParser.js';
+import { handleSynthesize } from '../lambdas/synthesizer/handler.js';
+import { validateAndSanitizeExtraction } from '../lambdas/extractor/handler.js';
+import { localMockExtraction } from '../shared/llm.js';
+import { SYNTHESIZER_SYSTEM_PROMPT, ARBITER_SYSTEM_PROMPT } from '../shared/prompts.js';
 
 describe('Veridex Extended Real-World Capabilities', () => {
   it('should discover literature for GLP-1 and Rapamycin research queries', async () => {
@@ -15,25 +19,97 @@ describe('Veridex Extended Real-World Capabilities', () => {
     expect(rapamycinDiscovery.papers.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('should compute normalized vector embeddings and cosine similarity', async () => {
-    const textA = 'Low-dose metformin extends mammalian lifespan and enhances metabolic health';
-    const textB = 'High-dose metformin induces renal failure and cytotoxicity in geriatric rodents';
-    const textC = 'Quantum computing algorithms for portfolio optimization';
+  it('should compute deterministic semantic fallback embeddings with proper cosine distance ranking', () => {
+    const textTarget = 'Does low-dose metformin extend lifespan in non-diabetic mammals?';
+    const textParaphrase = 'Low-dose metformin administration extends lifespan in mammals';
+    const textRelated = 'High-dose metformin causes cellular toxicity and lactic acidosis';
+    const textUnrelated = 'Quantum computing algorithms utilizing qubit superposition and quantum gates';
 
-    const embA = await generateTitanEmbedding(textA);
-    const embB = await generateTitanEmbedding(textB);
-    const embC = await generateTitanEmbedding(textC);
+    const embTarget = generateFallbackEmbedding(textTarget);
+    const embParaphrase = generateFallbackEmbedding(textParaphrase);
+    const embRelated = generateFallbackEmbedding(textRelated);
+    const embUnrelated = generateFallbackEmbedding(textUnrelated);
 
-    expect(embA.length).toBe(1024);
-    expect(embB.length).toBe(1024);
-    expect(embC.length).toBe(1024);
+    expect(embTarget.length).toBe(1024);
+    expect(embParaphrase.length).toBe(1024);
+    expect(embRelated.length).toBe(1024);
+    expect(embUnrelated.length).toBe(1024);
 
-    const simAB = cosineSimilarity(embA, embB);
-    const simAC = cosineSimilarity(embA, embC);
+    const simParaphrase = cosineSimilarity(embTarget, embParaphrase);
+    const simRelated = cosineSimilarity(embTarget, embRelated);
+    const simUnrelated = cosineSimilarity(embTarget, embUnrelated);
 
-    expect(typeof simAB).toBe('number');
-    expect(typeof simAC).toBe('number');
-  }, 25000);
+    // Paraphrase must score high (>= 0.60)
+    expect(simParaphrase).toBeGreaterThan(0.60);
+    // Related topic must score moderately (>= 0.15)
+    expect(simRelated).toBeGreaterThan(0.15);
+    // Unrelated topic must score very low (<= 0.15)
+    expect(simUnrelated).toBeLessThan(0.15);
+    // Semantic hierarchy: Paraphrase > Related > Unrelated
+    expect(simParaphrase).toBeGreaterThan(simRelated);
+    expect(simRelated).toBeGreaterThan(simUnrelated);
+  });
+
+  it('should generate human-readable prose narrative in Synthesizer and never return raw Arbiter JSON', async () => {
+    const extractions = [
+      { effect_direction: 'POSITIVE', effect_size: 14.0, p_value: 0.01, risk_of_bias: 'LOW' },
+      { effect_direction: 'POSITIVE', effect_size: 12.0, p_value: 0.02, risk_of_bias: 'LOW' },
+      { effect_direction: 'NEGATIVE', effect_size: -10.0, p_value: 0.04, risk_of_bias: 'MODERATE' },
+    ];
+    const contradictions = [
+      { status: 'RESOLVED', isolated_confounder: 'Dosage discrepancy' },
+    ];
+
+    const result = await handleSynthesize(extractions, contradictions, 'Metformin Longevity');
+    expect(typeof result.narrative).toBe('string');
+    expect(result.narrative).not.toContain('conflict_summary');
+    expect(result.narrative).not.toContain('"status":"RESOLVED"');
+    expect(result.narrative).toContain('Evidence synthesis across');
+
+    // Also verify localMockExtraction direct discrimination
+    const synthMock = localMockExtraction(JSON.stringify(result.aggregate), SYNTHESIZER_SYSTEM_PROMPT, false);
+    expect(typeof synthMock).toBe('string');
+    expect(synthMock).toContain('Evidence synthesis across');
+
+    const arbiterMock = localMockExtraction('Opposing studies text', ARBITER_SYSTEM_PROMPT, true);
+    expect(typeof arbiterMock).toBe('object');
+    expect(arbiterMock.conflict_summary).toBeDefined();
+    expect(arbiterMock.status).toBe('RESOLVED');
+  });
+
+  it('should strictly validate and sanitize study extraction schema before DB insertion', () => {
+    const maliciousRaw = {
+      sample_size: '150',
+      model_system: '  Murine In-Vivo Model  ',
+      effect_direction: 'positive',
+      p_value: '0.00345',
+      effect_size: '12.5',
+      risk_of_bias: 'low',
+      evidence_snippet: 'Metformin extended lifespan by 12.5% (p=0.003).',
+    };
+
+    const sanitized = validateAndSanitizeExtraction(maliciousRaw);
+    expect(sanitized.sample_size).toBe(150);
+    expect(sanitized.model_system).toBe('Murine In-Vivo Model');
+    expect(sanitized.effect_direction).toBe('POSITIVE');
+    expect(sanitized.p_value).toBe(0.00345);
+    expect(sanitized.effect_size).toBe(12.5);
+    expect(sanitized.risk_of_bias).toBe('LOW');
+
+    // Test invalid / malicious directions and out-of-bound p-values
+    const badRaw = {
+      sample_size: -50,
+      effect_direction: 'HACKED_DIRECTION',
+      p_value: 99.5,
+      risk_of_bias: 'INVALID_BIAS',
+    };
+
+    const sanitizedBad = validateAndSanitizeExtraction(badRaw);
+    expect(sanitizedBad.sample_size).toBeNull();
+    expect(sanitizedBad.effect_direction).toBeNull();
+    expect(sanitizedBad.p_value).toBeNull();
+    expect(sanitizedBad.risk_of_bias).toBeNull();
+  });
 
   it('should generate a valid PRISMA 2020 Markdown systematic review report', () => {
     const mockMatrix = {

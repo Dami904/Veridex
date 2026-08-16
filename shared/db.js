@@ -52,7 +52,39 @@ class InMemoryDatabase {
       return { rows: scored.slice(0, limit) };
     }
 
-    // 2. SELECT from papers WHERE id = $1
+    // 2. DELETE from study_extractions
+    if (upper.startsWith('DELETE FROM STUDY_EXTRACTIONS')) {
+      if (params.length === 2) {
+        // DELETE WHERE paper_id = $1 AND research_query = $2
+        for (const [id, item] of this.study_extractions.entries()) {
+          if (item.paper_id === params[0] && item.research_query === params[1]) {
+            this.study_extractions.delete(id);
+          }
+        }
+      } else if (params.length === 1) {
+        // DELETE WHERE research_query = $1 OR paper_id = $1
+        for (const [id, item] of this.study_extractions.entries()) {
+          if (item.research_query === params[0] || item.paper_id === params[0]) {
+            this.study_extractions.delete(id);
+          }
+        }
+      }
+      return { rows: [] };
+    }
+
+    // 3. DELETE from contradictions
+    if (upper.startsWith('DELETE FROM CONTRADICTIONS')) {
+      if (params.length >= 1) {
+        for (const [id, item] of this.contradictions.entries()) {
+          if (item.research_query === params[0]) {
+            this.contradictions.delete(id);
+          }
+        }
+      }
+      return { rows: [] };
+    }
+
+    // 4. SELECT from papers WHERE id = $1
     if (upper.startsWith('SELECT') && upper.includes('FROM PAPERS') && /(?:WHERE\s+(?:[A-Z0-9_]+\.)?ID\s*=\s*\$1)/i.test(upper)) {
       const paper = this.papers.get(params[0]);
       if (!paper) return { rows: [] };
@@ -60,7 +92,7 @@ class InMemoryDatabase {
       return { rows: [cleanPaper] };
     }
 
-    // 3. SELECT papers WHERE id IN (...)
+    // 5. SELECT papers WHERE id IN (...)
     if (upper.startsWith('SELECT') && upper.includes('FROM PAPERS') && /(?:WHERE\s+(?:[A-Z0-9_]+\.)?ID\s+IN)/i.test(upper)) {
       const results = params
         .map((id) => this.papers.get(id))
@@ -69,12 +101,24 @@ class InMemoryDatabase {
       return { rows: results };
     }
 
-    // 4. INSERT into papers
+    // 6. INSERT into papers (with DOI deduplication)
     if (upper.startsWith('INSERT INTO PAPERS')) {
-      const id = params[0] || randomUUID();
+      const providedId = params[0] || randomUUID();
+      const doi = params[1] || null;
+
+      let id = providedId;
+      if (doi) {
+        for (const [existingId, p] of this.papers.entries()) {
+          if (p.doi === doi) {
+            id = existingId;
+            break;
+          }
+        }
+      }
+
       const paper = {
         id,
-        doi: params[1] || null,
+        doi,
         title: params[2],
         journal: params[3] || null,
         year: params[4] || null,
@@ -88,7 +132,7 @@ class InMemoryDatabase {
       return { rows: [cleanPaper] };
     }
 
-    // 5. INSERT into study_extractions (upsert)
+    // 7. INSERT into study_extractions (upsert by paper_id and research_query)
     if (upper.startsWith('INSERT INTO STUDY_EXTRACTIONS')) {
       const id = params[0] || randomUUID();
       const extraction = {
@@ -109,7 +153,7 @@ class InMemoryDatabase {
         created_at: new Date().toISOString(),
       };
 
-      // Check for existing (paper_id, research_query)
+      // Clean prior extraction for this (paper_id, research_query)
       for (const [existingId, item] of this.study_extractions.entries()) {
         if (item.paper_id === extraction.paper_id && item.research_query === extraction.research_query) {
           this.study_extractions.delete(existingId);
@@ -120,11 +164,11 @@ class InMemoryDatabase {
       return { rows: [extraction] };
     }
 
-    // 6. SELECT study_extractions by query (alias-aware & join-aware regex)
+    // 8. SELECT study_extractions by research_query (handles aliases e.*, joins, etc.)
     if (
       upper.startsWith('SELECT') &&
       upper.includes('STUDY_EXTRACTIONS') &&
-      /(?:WHERE\s+(?:[A-Z0-9_]+\.)?RESEARCH_QUERY\s*=\s*\$1)/i.test(upper)
+      /(?:WHERE\s+.*?(?:[A-Z0-9_]+\.)?RESEARCH_QUERY\s*=\s*\$1)/i.test(upper)
     ) {
       const results = [];
       for (const item of this.study_extractions.values()) {
@@ -143,7 +187,7 @@ class InMemoryDatabase {
       return { rows: results };
     }
 
-    // 7. SELECT study_extractions WHERE paper_id = $1
+    // 9. SELECT study_extractions WHERE paper_id = $1
     if (
       upper.startsWith('SELECT') &&
       upper.includes('STUDY_EXTRACTIONS') &&
@@ -158,7 +202,7 @@ class InMemoryDatabase {
       return { rows: results };
     }
 
-    // 8. INSERT into contradictions
+    // 10. INSERT into contradictions
     if (upper.startsWith('INSERT INTO CONTRADICTIONS')) {
       const id = params[0] || randomUUID();
       const contradiction = {
@@ -176,11 +220,11 @@ class InMemoryDatabase {
       return { rows: [contradiction] };
     }
 
-    // 9. SELECT contradictions by query (alias-aware regex)
+    // 11. SELECT contradictions by research_query (handles aliases, projection variants)
     if (
       upper.startsWith('SELECT') &&
       upper.includes('CONTRADICTIONS') &&
-      /(?:WHERE\s+(?:[A-Z0-9_]+\.)?RESEARCH_QUERY\s*=\s*\$1)/i.test(upper)
+      /(?:WHERE\s+.*?(?:[A-Z0-9_]+\.)?RESEARCH_QUERY\s*=\s*\$1)/i.test(upper)
     ) {
       const results = [];
       for (const item of this.contradictions.values()) {
@@ -197,7 +241,7 @@ class InMemoryDatabase {
       return { rows: results };
     }
 
-    // 10. General SELECT papers (omitting raw 1024-float vector to avoid payload bloat)
+    // 12. General SELECT papers (omitting raw float vector to avoid payload bloat)
     if (upper.startsWith('SELECT') && upper.includes('FROM PAPERS')) {
       const cleanPapers = Array.from(this.papers.values()).map(({ abstract_embedding: _, ...p }) => p);
       return { rows: cleanPapers };

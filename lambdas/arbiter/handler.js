@@ -5,17 +5,19 @@ import { randomUUID } from 'crypto';
 
 /**
  * Arbiter Lambda Handler
- * Finds representative pairs of study extractions with opposing effect directions,
- * executes the Arbiter LLM to isolate methodological confounders, and records contradictions in CockroachDB.
+ * Finds all opposing study pairs for a research_query and resolves methodological confounders.
  */
 export async function handleArbitrate(event) {
-  const queryParam = event.pathParameters?.query || event.research_query || (typeof event.body === 'string' ? JSON.parse(event.body).research_query : event.body?.research_query);
+  const queryParam =
+    event.pathParameters?.query ||
+    event.queryStringParameters?.query ||
+    (typeof event.body === 'string' ? JSON.parse(event.body).query : event.body?.query);
 
   if (!queryParam) {
     return {
       statusCode: 400,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Missing research_query parameter' }),
+      body: JSON.stringify({ error: 'Missing query parameter in pathParameters or body' }),
     };
   }
 
@@ -36,8 +38,11 @@ export async function handleArbitrate(event) {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          success: true,
           message: 'Insufficient studies (<2) to detect contradictions',
           contradictions: [],
+          new_contradictions: [],
+          total_arbitrated: 0,
           analyzed_pairs: 0,
         }),
       };
@@ -56,11 +61,19 @@ export async function handleArbitrate(event) {
     const negativeStudies = extractions.filter((e) => e.effect_direction === 'NEGATIVE');
 
     const newContradictions = [];
-    let totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
-    const MAX_PAIRS_PER_RUN = 12; // Smart threshold to ensure responsive latency & bounded cost
+    const totalUsage = {
+      provider: 'arbiter-ensemble',
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      estimatedCostUsd: 0,
+      latencyMs: 0,
+    };
 
-    // 3. Pairwise arbitration over opposing effect directions
+    // Bounded pairwise arbitration (max 10 pairs per invocation)
+    const MAX_PAIRS_PER_RUN = 10;
     let pairsProcessed = 0;
+
     for (const posStudy of positiveStudies) {
       for (const negStudy of negativeStudies) {
         if (pairsProcessed >= MAX_PAIRS_PER_RUN) break;
@@ -69,38 +82,35 @@ export async function handleArbitrate(event) {
         const pairKey2 = `${negStudy.paper_id}_${posStudy.paper_id}`;
 
         if (existingPairs.has(pairKey1) || existingPairs.has(pairKey2)) {
-          continue; // Already arbitrated
+          continue;
         }
 
-        const userPrompt = `
-Research Query: ${queryParam}
+        // 3. Format study pair for Arbiter LLM
+        const userPrompt = `research_query: ${queryParam}
 
-[Study A (Positive)]
-Paper Title: ${posStudy.paper_title || 'Study A'}
-Year: ${posStudy.paper_year || 'N/A'}
+STUDY A (POSITIVE):
+Paper Title: ${posStudy.paper_title || 'N/A'} (${posStudy.paper_year || 'N/A'})
 Sample Size: ${posStudy.sample_size || 'N/A'}
 Model System: ${posStudy.model_system || 'N/A'}
 Intervention: ${posStudy.intervention || 'N/A'}
 Control: ${posStudy.control || 'N/A'}
-Effect Direction: ${posStudy.effect_direction}
-Effect Size: ${posStudy.effect_size || 'N/A'}
-p-value: ${posStudy.p_value || 'N/A'}
+Primary Metric: ${posStudy.primary_metric || 'N/A'}
+Effect Size: ${posStudy.effect_size !== null ? posStudy.effect_size : 'N/A'}
+P-Value: ${posStudy.p_value !== null ? posStudy.p_value : 'N/A'}
 Risk of Bias: ${posStudy.risk_of_bias || 'N/A'}
 Evidence Snippet: "${posStudy.evidence_snippet || 'N/A'}"
 
-[Study B (Negative)]
-Paper Title: ${negStudy.paper_title || 'Study B'}
-Year: ${negStudy.paper_year || 'N/A'}
+STUDY B (NEGATIVE):
+Paper Title: ${negStudy.paper_title || 'N/A'} (${negStudy.paper_year || 'N/A'})
 Sample Size: ${negStudy.sample_size || 'N/A'}
 Model System: ${negStudy.model_system || 'N/A'}
 Intervention: ${negStudy.intervention || 'N/A'}
 Control: ${negStudy.control || 'N/A'}
-Effect Direction: ${negStudy.effect_direction}
-Effect Size: ${negStudy.effect_size || 'N/A'}
-p-value: ${negStudy.p_value || 'N/A'}
+Primary Metric: ${negStudy.primary_metric || 'N/A'}
+Effect Size: ${negStudy.effect_size !== null ? negStudy.effect_size : 'N/A'}
+P-Value: ${negStudy.p_value !== null ? negStudy.p_value : 'N/A'}
 Risk of Bias: ${negStudy.risk_of_bias || 'N/A'}
-Evidence Snippet: "${negStudy.evidence_snippet || 'N/A'}"
-        `.trim();
+Evidence Snippet: "${negStudy.evidence_snippet || 'N/A'}"`;
 
         const llmResult = await executeLLMCall({
           systemPrompt: ARBITER_SYSTEM_PROMPT,
@@ -109,6 +119,7 @@ Evidence Snippet: "${negStudy.evidence_snippet || 'N/A'}"
         });
 
         const arbVerdict = llmResult.content || {};
+
         totalUsage.inputTokens += llmResult.usage.inputTokens;
         totalUsage.outputTokens += llmResult.usage.outputTokens;
         totalUsage.totalTokens += llmResult.usage.totalTokens;
@@ -149,7 +160,9 @@ Evidence Snippet: "${negStudy.evidence_snippet || 'N/A'}"
         success: true,
         research_query: queryParam,
         new_contradictions: newContradictions,
+        contradictions: newContradictions,
         total_arbitrated: newContradictions.length,
+        analyzed_pairs: pairsProcessed,
         usage: totalUsage,
       }),
     };
