@@ -15,7 +15,6 @@ import { PrismaExportModal } from './components/PrismaExportModal';
 import { VectorSearchModal } from './components/VectorSearchModal';
 import { CostMonitor } from './components/CostMonitor';
 import {
-  Layers,
   Database,
   Plus,
   RefreshCw,
@@ -494,8 +493,15 @@ export const App: React.FC = () => {
       <header className="sticky top-0 z-40 bg-surface-base/90 backdrop-blur-md hairline-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <Layers className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 120 120" fill="none" aria-label="Veridex">
+                <path d="M28 30 Q35 75 60 92" stroke="#fb7185" strokeWidth="9" strokeLinecap="round" opacity="0.85"/>
+                <path d="M92 30 Q85 75 60 92" stroke="#34d399" strokeWidth="9" strokeLinecap="round" opacity="0.85"/>
+                <circle cx="28" cy="30" r="11" fill="#f43f5e"/>
+                <circle cx="92" cy="30" r="11" fill="#10b981"/>
+                <circle cx="60" cy="92" r="18" fill="none" stroke="#34d399" strokeWidth="3" opacity="0.4"/>
+                <circle cx="60" cy="92" r="14" fill="#34d399"/>
+              </svg>
             </div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-base tracking-tight text-slate-100 flex items-center gap-2">

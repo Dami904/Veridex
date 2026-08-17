@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <!-- Veridex mark: two opposing findings (rose vs emerald) converging into one resolved consensus node. -->
+  <path d="M28 30 Q35 75 60 92" stroke="#fb7185" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
+  <path d="M92 30 Q85 75 60 92" stroke="#34d399" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
+
+  <circle cx="28" cy="30" r="11" fill="#f43f5e"/>
+  <circle cx="92" cy="30" r="11" fill="#10b981"/>
+
+  <circle cx="60" cy="92" r="18" fill="none" stroke="#34d399" stroke-width="3" opacity="0.4"/>
+  <circle cx="60" cy="92" r="14" fill="#34d399"/>
+</svg>

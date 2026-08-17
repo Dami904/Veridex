@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" fill="none">
+  <g transform="translate(0,0)">
+    <path d="M28 30 Q35 75 60 92" stroke="#fb7185" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
+    <path d="M92 30 Q85 75 60 92" stroke="#34d399" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
+    <circle cx="28" cy="30" r="11" fill="#f43f5e"/>
+    <circle cx="92" cy="30" r="11" fill="#10b981"/>
+    <circle cx="60" cy="92" r="18" fill="none" stroke="#34d399" stroke-width="3" opacity="0.4"/>
+    <circle cx="60" cy="92" r="14" fill="#34d399"/>
+  </g>
+  <text x="138" y="76" font-family="Inter, -apple-system, Segoe UI, sans-serif" font-weight="800" font-size="46" letter-spacing="-1" fill="#f1f5f9">Veridex</text>
+  <text x="140" y="98" font-family="JetBrains Mono, monospace" font-weight="600" font-size="13" letter-spacing="2" fill="#34d399">CONSENSUS ENGINE</text>
+</svg>
