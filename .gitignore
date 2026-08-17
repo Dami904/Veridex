@@ -38,3 +38,6 @@ Thumbs.db
 *.sw?
 
 .vercel
+
+# Submission drafts, not meant to be tracked
+docs/DORAHACKS_SUBMISSION.md
