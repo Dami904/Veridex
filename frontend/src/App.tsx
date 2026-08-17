@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   fetchMatrix,
   triggerArbitration,
@@ -470,20 +470,24 @@ export const App: React.FC = () => {
     }
   };
 
-  const allContradictions = [
+  // Memoized so these keep stable references across unrelated re-renders (e.g. the
+  // once-a-second elapsed-time ticker below) — ContradictionGraph treats a new array
+  // reference as new data and resets its force simulation to fresh random positions,
+  // which without this made the graph reshuffle and re-animate every second.
+  const allContradictions = useMemo(() => [
     ...(matrixData?.contradictions || []),
     ...(isCompareMode ? (matrixData2?.contradictions || []) : [])
-  ];
-  
-  const allExtractions = [
+  ], [matrixData?.contradictions, isCompareMode, matrixData2?.contradictions]);
+
+  const allExtractions = useMemo(() => [
     ...(matrixData?.extractions || []),
     ...(isCompareMode ? (matrixData2?.extractions || []) : [])
-  ];
-  
-  const allPapers = [
+  ], [matrixData?.extractions, isCompareMode, matrixData2?.extractions]);
+
+  const allPapers = useMemo(() => [
     ...(matrixData?.papers || []),
     ...(isCompareMode ? (matrixData2?.papers || []) : [])
-  ];
+  ], [matrixData?.papers, isCompareMode, matrixData2?.papers]);
 
   return (
     <div className="min-h-screen bg-canvas text-slate-100 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-200">
