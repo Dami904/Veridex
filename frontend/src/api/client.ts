@@ -100,6 +100,16 @@ export interface PrismaExportResult {
 
 const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:4000');
 
+// Sent on write routes when the backend has ADMIN_API_KEY configured. This is a public demo
+// app: these actions are meant to be clickable by any visitor, so the key ships in the client
+// bundle by design (Vite VITE_ vars are always public). It's friction against naive bots hitting
+// the raw API directly, not a secret, so it's fine for the key to be visible in devtools.
+const ADMIN_KEY = import.meta.env.VITE_ADMIN_API_KEY;
+const adminHeaders = (extra: Record<string, string> = {}) => ({
+  ...extra,
+  ...(ADMIN_KEY ? { 'X-Veridex-Admin-Key': ADMIN_KEY } : {}),
+});
+
 export async function fetchMatrix(query: string): Promise<MatrixPayload> {
   const res = await fetch(`${API_BASE}/research-queries/${encodeURIComponent(query)}/matrix`);
   if (!res.ok) throw new Error(`Matrix request failed: ${res.statusText}`);
@@ -117,7 +127,7 @@ export async function addPaper(paper: {
 }) {
   const res = await fetch(`${API_BASE}/papers`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(paper),
   });
   if (!res.ok) throw new Error(`Add paper failed: ${res.statusText}`);
@@ -128,10 +138,10 @@ export async function uploadPdfPaper(file: File, research_query: string) {
   const arrayBuffer = await file.arrayBuffer();
   const res = await fetch(`${API_BASE}/papers/upload-pdf?research_query=${encodeURIComponent(research_query)}`, {
     method: 'POST',
-    headers: {
+    headers: adminHeaders({
       'Content-Type': 'application/pdf',
       'X-Research-Query': encodeURIComponent(research_query),
-    },
+    }),
     body: arrayBuffer,
   });
   if (!res.ok) throw new Error(`PDF upload and parse failed: ${res.statusText}`);
@@ -315,7 +325,7 @@ export function downloadRis(query: string) {
 export async function seedDemoDataset() {
   const res = await fetch(`${API_BASE}/seed`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
   });
   if (!res.ok) throw new Error(`Seed failed: ${res.statusText}`);
   return res.json();
